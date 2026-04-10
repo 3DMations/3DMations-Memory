@@ -30,7 +30,7 @@ syncs its learnings to the hub, and can search the full cross-machine knowledge 
 ```
 ┌─────────────────────────────── Home LAN (192.168.1.x) ──────────────────────────────┐
 │                                                                                       │
-│  ┌─────────────────────────────── aiwork-host (192.168.1.165) ──────────────────┐   │
+│  ┌─────────────────────────────── aiwork-Legion (aiwork-Legion.local) ──────────────────┐   │
 │  │                                                                                │   │
 │  │  ┌──────────────────────── Docker: hub-internal bridge ─────────────────┐    │   │
 │  │  │                                                                        │    │   │
@@ -42,7 +42,7 @@ syncs its learnings to the hub, and can search the full cross-machine knowledge 
 │  │  │         │                                                               │    │   │
 │  │  └─────────┼─────────────────────────────────────────────────────────────┘    │   │
 │  │            │                                                                    │   │
-│  │  192.168.1.165:8443 ◀── mTLS ──────────────────────────────────────────────   │   │
+│  │  aiwork-Legion.local:8443 ◀── mTLS ──────────────────────────────────────────────   │   │
 │  │                                                                                │   │
 │  └────────────────────────────────────────────────────────────────────────────────┘   │
 │                          ▲                    ▲                    ▲                   │
@@ -53,7 +53,7 @@ syncs its learnings to the hub, and can search the full cross-machine knowledge 
 
  Also on aiwork-host (same cert — aiwork-host):
    3DMations-OPS  ──┐
-   3DMations-DEV  ──┼──▶ 192.168.1.165:8443
+   3DMations-DEV  ──┼──▶ aiwork-Legion.local:8443
    3DMations-Memory ┘
 ```
 
@@ -72,7 +72,7 @@ Both sides of every connection present a certificate signed by the project CA.
 | `certs/clients/{machine}/client.crt` | Each client machine | Proves machine identity |
 
 - CA private key never leaves `certs/ca.key` — never shared, never in a container
-- Server cert SAN includes: `memory-hub`, `memory-gateway`, `localhost`, `127.0.0.1`, `192.168.1.165`
+- Server cert SAN includes: `memory-hub`, `memory-gateway`, `localhost`, `aiwork-Legion.local`, `127.0.0.1`
 - All certs expire 365 days from generation; `hub-sync.md` warns 14 days before expiry
 
 ### API Key
@@ -186,7 +186,7 @@ Claude session (any machine)
 
 ```
 Browser (with client.p12 installed)
-  └── https://192.168.1.165:8443
+  └── https://aiwork-Legion.local:8443
         └── nginx (mTLS verify → serve static files)
               └── dashboard/index.html
                     ├── GET /api/token → get API key
@@ -201,9 +201,9 @@ Browser (with client.p12 installed)
 ## Rollout Phases
 
 ### Phase 1 — Local (current)
-- Hub running on `192.168.1.165:8443`
+- Hub running on `aiwork-Legion.local:8443`
 - OPS + DEV on same machine → share `aiwork-host` cert
-- Dashboard accessible at `https://192.168.1.165:8443`
+- Dashboard accessible at `https://aiwork-Legion.local:8443`
 
 ### Phase 2 — LAN Machines
 - CachyOS, Mac Mini, Work Laptop get individual certs

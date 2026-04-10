@@ -509,12 +509,12 @@ Maintained here to prevent future collisions. Update when adding any new service
 ### Memory Hub — this project (`docker-compose.yml`)
 | Host Port | Container | Service | Note |
 |-----------|-----------|---------|------|
-| `192.168.1.165:8443` | memory-gateway | nginx mTLS | LAN-accessible; mTLS is auth layer |
+| `aiwork-Legion.local:8443` | memory-gateway | nginx mTLS | LAN-accessible; mTLS is auth layer |
 | — | memory-api | FastAPI | Internal only |
 | — | memory-db | PostgreSQL 16 | Internal only |
 
 **Hub port 8443 is confirmed clear across all stacks.**
-**Hub LAN IP:** `192.168.1.165` — confirmed reachable from LAN.
+**Hub LAN IP:** `aiwork-Legion.local` — confirmed reachable from LAN.
 **Next available:** 8444, 8445 (avoid everything in the tables above)
 
 ---
@@ -541,7 +541,7 @@ Before first `docker compose up`:
 
 **Rollout order:**
 1. **Phase 1 — Local (this machine):** OPS + DEV first. Same machine, same cert (`aiwork-host`). Do when each session is idle.
-2. **Phase 2 — LAN machines:** CachyOS, Mac Mini, Work Laptop. Hub now bound to `192.168.1.165:8443`. Certs pre-generated in `certs/clients/{machine}/`. Deploy once Phase 1 is stable and metrics are verified in dashboard.
+2. **Phase 2 — LAN machines:** CachyOS, Mac Mini, Work Laptop. Hub now bound to `aiwork-Legion.local:8443`. Certs pre-generated in `certs/clients/{machine}/`. Deploy once Phase 1 is stable and metrics are verified in dashboard.
 
 These steps connect 3DMations-OPS and 3DMations-DEV to the Memory Hub as client machines.
 **Do not run these until each project's Claude Code session is idle.**
@@ -582,7 +582,7 @@ Create `.claude/hub-config.env` in each project (replace API_KEY_HERE with value
 
 ```bash
 # .claude/hub-config.env (same content for OPS and DEV — same machine, same cert)
-HUB_URL=https://192.168.1.165:8443
+HUB_URL=https://aiwork-Legion.local:8443
 HUB_API_KEY=API_KEY_HERE
 HUB_CERT_DIR=/home/aiwork/Documents/Projects/3DMations-Memory/certs/clients/aiwork-host
 HUB_CA=/home/aiwork/Documents/Projects/3DMations-Memory/certs/ca.crt
@@ -689,7 +689,7 @@ scp certs/clients/cachyos/client.crt \
     USER@cachyos:~/.claude-hub-certs/
 
 # 2. SSH into remote machine, create hub-config.env in each project:
-# HUB_URL=https://192.168.1.165:8443
+# HUB_URL=https://aiwork-Legion.local:8443
 # HUB_API_KEY=<same key>
 # HUB_CERT_DIR=~/.claude-hub-certs
 # HUB_CA=~/.claude-hub-certs/ca.crt

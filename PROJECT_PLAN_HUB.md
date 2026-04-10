@@ -536,6 +536,127 @@ Before first `docker compose up`:
 
 ---
 
+## OPS/DEV Client Integration — Do When Projects Are Idle
+
+These steps connect 3DMations-OPS and 3DMations-DEV to the Memory Hub as client machines.
+**Do not run these until each project's Claude Code session is idle.**
+These are additive only — no existing files in those projects are modified.
+
+### Files created in each client project
+
+| File | Purpose |
+|------|---------|
+| `.claude/hub-config.env` | Hub URL, API key, cert paths |
+| `.claude/hub-breaker.json` | Circuit breaker initial state |
+| `.claude/commands/hub-sync.md` | Slash command — sync entries to hub |
+| `.claude/commands/hub-search.md` | Slash command — search hub from any session |
+
+### Step 1 — Copy hub commands into each project
+
+From the hub machine, copy the two command files:
+
+```bash
+# For OPS:
+cp /home/aiwork/Documents/Projects/3DMations-Memory/.claude/commands/hub-sync.md \
+   /home/aiwork/Documents/Projects/3DMations-OPS/.claude/commands/hub-sync.md
+
+cp /home/aiwork/Documents/Projects/3DMations-Memory/.claude/commands/hub-search.md \
+   /home/aiwork/Documents/Projects/3DMations-OPS/.claude/commands/hub-search.md
+
+# For DEV:
+cp /home/aiwork/Documents/Projects/3DMations-Memory/.claude/commands/hub-sync.md \
+   /home/aiwork/Documents/Projects/3DMations-DEV/.claude/commands/hub-sync.md
+
+cp /home/aiwork/Documents/Projects/3DMations-Memory/.claude/commands/hub-search.md \
+   /home/aiwork/Documents/Projects/3DMations-DEV/.claude/commands/hub-search.md
+```
+
+### Step 2 — Create hub-config.env in each project
+
+Create `.claude/hub-config.env` in each project (replace API_KEY_HERE with value from Memory Hub's `.env`):
+
+```bash
+# .claude/hub-config.env (same content for OPS and DEV)
+HUB_URL=https://memory-hub:8443
+HUB_API_KEY=API_KEY_HERE
+HUB_CERT_DIR=/home/aiwork/Documents/Projects/3DMations-Memory/certs/clients/aiwork-host
+```
+
+Note: `HUB_CERT_DIR` points to the shared cert directory in the Memory project. Both OPS and DEV use the same client cert since they run on the same machine.
+
+Add to each project's `.gitignore` if not already present:
+```
+.claude/hub-config.env
+.claude/hub-breaker.json
+```
+
+### Step 3 — Initialize circuit breaker state
+
+```bash
+# Run for each project:
+echo '{"state":"closed","failures":0,"last_trip":""}' \
+  > /home/aiwork/Documents/Projects/3DMations-OPS/.claude/hub-breaker.json
+
+echo '{"state":"closed","failures":0,"last_trip":""}' \
+  > /home/aiwork/Documents/Projects/3DMations-DEV/.claude/hub-breaker.json
+```
+
+### Step 4 — Verify connection from each project
+
+```bash
+# Test OPS → hub
+cd /home/aiwork/Documents/Projects/3DMations-OPS
+source .claude/hub-config.env
+curl -sk --cert $HUB_CERT_DIR/client.crt \
+         --key  $HUB_CERT_DIR/client.key \
+         --cacert /home/aiwork/Documents/Projects/3DMations-Memory/certs/ca.crt \
+         -H "X-API-Key: $HUB_API_KEY" \
+         $HUB_URL/api/health
+
+# Test DEV → hub
+cd /home/aiwork/Documents/Projects/3DMations-DEV
+source .claude/hub-config.env
+curl -sk --cert $HUB_CERT_DIR/client.crt \
+         --key  $HUB_CERT_DIR/client.key \
+         --cacert /home/aiwork/Documents/Projects/3DMations-Memory/certs/ca.crt \
+         -H "X-API-Key: $HUB_API_KEY" \
+         $HUB_URL/api/health
+```
+
+Expected: `{"status":"ok","version":"2.3.0"}` from both.
+
+### Step 5 — First sync
+
+In each project's Claude Code session, run:
+```
+/hub-sync
+```
+
+After the first sync, entries appear in the dashboard at https://localhost:8443.
+
+### Per-project .gitignore additions
+
+Add to OPS `.gitignore` and DEV `.gitignore`:
+```
+.claude/hub-config.env
+.claude/hub-breaker.json
+```
+
+### Checklist
+
+- [ ] OPS: hub-sync.md + hub-search.md copied
+- [ ] OPS: hub-config.env created with correct API key
+- [ ] OPS: hub-breaker.json initialized
+- [ ] OPS: hub-config.env added to .gitignore
+- [ ] OPS: connection verified (curl returns 200)
+- [ ] DEV: hub-sync.md + hub-search.md copied
+- [ ] DEV: hub-config.env created with correct API key
+- [ ] DEV: hub-breaker.json initialized
+- [ ] DEV: hub-config.env added to .gitignore
+- [ ] DEV: connection verified (curl returns 200)
+
+---
+
 ## Issue Summary
 
 | ID | Title | Severity | Status | Depends On |
@@ -549,7 +670,7 @@ Before first `docker compose up`:
 | AUDIT-007 | No PostgreSQL backup | HIGH | [ ] Open | AUDIT-009 |
 | AUDIT-008 | Port 5173 collision OPS+DEV | HIGH | [ ] External action — remap DEV dashboard port in 3DMations-DEV project | — |
 | AUDIT-009 | Docker network isolation | HIGH | [~] Partial — Memory hub docker-compose.yml declares 3dmations-shared; OPS must add it separately | — |
-| AUDIT-010 | DEV missing .claude/memory/ | HIGH | [ ] Open | — |
+| AUDIT-010 | DEV missing .claude/memory/ | HIGH | [ ] Deferred — bootstrap when DEV session is idle; steps documented in OPS/DEV Client Integration section | — |
 | AUDIT-011 | ~~Second PostgreSQL instance waste~~ | MEDIUM | [x] Closed — dedicated PG confirmed | — |
 | AUDIT-012 | gen_random_uuid() attribution | MEDIUM | [x] Resolved — comment fixed in init.sql | — |
 | AUDIT-013 | nginx DN vs CN rate limiting | MEDIUM | [x] Resolved — CN collision check in gen-certs.sh | — |

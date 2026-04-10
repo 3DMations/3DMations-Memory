@@ -11,4 +11,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-CMD ["sh", "-c", "alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port 8484 --log-level ${LOG_LEVEL:-info}"]
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port 8484 --log-level ${LOG_LEVEL:-info}"]

@@ -1,0 +1,9 @@
+CLAUDE.local.md
+.claude/settings.local.json
+.claude/memory/learnings/
+.claude/memory/archive/
+.claude/memory/traces/
+.claude/memory/rule-versions/
+.claude/memory/index.json
+.claude/memory/audit-log.md
+.claude/memory/evolve-log.md

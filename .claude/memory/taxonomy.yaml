@@ -1,0 +1,42 @@
+# Memory Taxonomy — extend subcategories as needed, keep primaries <= 6
+categories:
+  code:
+    subcategories: [syntax, logic, database, api, testing, performance, security, dependencies]
+    summary_file: code-patterns.md
+  devops:
+    subcategories: [docker, ci-cd, deployment, monitoring, networking, cloud]
+    summary_file: devops-patterns.md
+  infrastructure:
+    subcategories: [servers, storage, dns, ssl, scaling, backup]
+    summary_file: infrastructure-patterns.md
+  research:
+    subcategories: [methodology, sources, analysis, citations]
+    summary_file: research-patterns.md
+  writing:
+    subcategories: [tone, structure, grammar, formatting, audience]
+    summary_file: writing-patterns.md
+  conversation:
+    subcategories: [misunderstanding, assumption, context-loss, clarification]
+    summary_file: conversation-patterns.md
+
+# Cross-cutting summary files (not mapped to a single category)
+cross_cutting:
+  gotchas:
+    summary_file: gotchas.md
+    source_rule: "All entries with recurrence_count >= 3, regardless of category"
+  decisions:
+    summary_file: decisions.md
+    source_rule: "All entries with type = decision, regardless of category"
+
+types: [mistake, learning, insight, pattern, anti-pattern, decision]
+severities: [blocker, critical, major, minor, trivial]
+statuses: [active, archived]
+
+# Tunable thresholds
+dedup_jaccard_threshold: 0.6
+max_active_entries: 500
+
+# [MH3] Self-improvement thresholds
+evolve_min_entries: 20           # Minimum entries before evolve is useful
+evolve_min_traces: 10            # Minimum traces before trace analysis is useful
+evolve_recurrence_threshold: 3   # Entries recurring this often suggest a rule gap

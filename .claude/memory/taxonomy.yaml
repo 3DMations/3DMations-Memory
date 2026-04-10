@@ -40,3 +40,6 @@ max_active_entries: 500
 evolve_min_entries: 20           # Minimum entries before evolve is useful
 evolve_min_traces: 10            # Minimum traces before trace analysis is useful
 evolve_recurrence_threshold: 3   # Entries recurring this often suggest a rule gap
+
+# [MH2] Trace capture is experimental — no verified empirical justification yet
+trace_capture_enabled: false     # Set true after internal 60-task validation study

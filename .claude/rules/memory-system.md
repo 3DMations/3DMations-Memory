@@ -39,21 +39,26 @@ of the lowest-value entries (lowest confidence + lowest recurrence + oldest).
 10. Update .claude/memory/index.json with the new entry metadata.
     Increment stats.total and stats.active.
 
-## Execution Trace Capture [MH1/MH2]
-11. When logging a mistake, failed command, or unexpected behavior, also capture
-    the raw execution trace. This includes: the exact commands run, their stdout
-    and stderr output, any error messages or stack traces, and the state of
-    relevant files at the time of the error.
-12. Write the trace to .claude/memory/traces/trace-{same-ID-suffix}.md
+## Execution Trace Capture [MH1/MH2] — experimental
+11. Check taxonomy.yaml field trace_capture_enabled before capturing any trace.
+    If trace_capture_enabled is false (the default): skip rules 12-15 entirely.
+    Only capture traces when trace_capture_enabled: true.
+12. When trace_capture_enabled is true AND logging a mistake/failed command/unexpected
+    behavior, capture the raw execution trace: exact commands run, stdout/stderr output,
+    error messages or stack traces, and state of relevant files at the time of the error.
+13. Write the trace to .claude/memory/traces/trace-{same-ID-suffix}.md
     (e.g., if the entry is learn-2026-0330-001, the trace is trace-2026-0330-001.md).
-13. Truncate traces to 200 lines. If longer, keep the first 50 lines (setup/context),
+14. Truncate traces to 200 lines. If longer, keep the first 50 lines (setup/context),
     the last 100 lines (the actual failure), and a "[... N lines truncated ...]"
     marker in between.
-14. Set the execution_trace field in the entry's frontmatter to the trace file path.
-15. Increment stats.traces in index.json when a trace is created.
+15. Set the execution_trace field in the entry's frontmatter to the trace file path.
+    Increment stats.traces in index.json when a trace is created.
 16. Not every entry needs a trace. Traces are most valuable for: mistakes, anti-patterns,
     and any entry where "what happened" involves specific commands or outputs.
     Insights, decisions, and patterns usually do NOT need traces.
+    NOTE: trace_capture_enabled is currently false (experimental). The hypothesis that
+    execution traces improve retrieval outcomes is under internal validation — see
+    evolve-log.md for results. Enable after a 60-task validation study confirms value.
 
 ## Duplicate Prevention on Write
 17. Before creating a new entry, compare the proposed title + trigger_context + tags

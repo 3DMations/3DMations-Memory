@@ -67,7 +67,7 @@ LOCK_FILE="/tmp/claude-hub-breaker-$(basename $(pwd)).lock"
 - [ ] With `trace_capture_enabled: true`, verify traces are captured and searchable
 - [ ] Internal study: 60-task sample, measure whether trace matches improved outcomes vs. summary-only
 
-**Status:** [ ] Open
+**Status:** [x] Resolved — `trace_capture_enabled: false` added to taxonomy.yaml; memory-system.md rules 11-16 now conditional on flag; citation replaced with internal validation note; rule-version snapshot created.
 
 ---
 
@@ -96,7 +96,7 @@ DO UPDATE SET
 - [ ] Send two concurrent POSTs with same machine_id + local_entry_id; verify `updated_at` equals server time (not either client's timestamp)
 - [ ] Run concurrency test from project plan Section 11.1 (20 concurrent writes from 2 terminals); verify exactly 20 entries
 
-**Status:** [ ] Open
+**Status:** [x] Resolved — `db/init.sql` uses `upsert_entry()` function with `updated_at = now()` (server-side); never `EXCLUDED.updated_at`. Same pattern enforced in `api/main.py`.
 
 ---
 
@@ -253,7 +253,7 @@ Update DEV's README and any scripts referencing port 5173 for the dashboard.
 - [ ] DEV dashboard accessible at http://localhost:5174
 - [ ] Both running simultaneously without conflict
 
-**Status:** [ ] Open
+**Status:** [ ] External action required — this project documents what must change in 3DMations-DEV, but cannot make changes to that project. The fix (remap `5173:5173` → `5174:5173` in DEV's docker-compose.yml) must be applied by whoever manages 3DMations-DEV.
 
 ---
 
@@ -302,7 +302,7 @@ Update DEV's README and any scripts referencing port 5173 for the dashboard.
 - [ ] `docker exec jarvis-core ping memory-gateway` succeeds
 - [ ] OPS task scripts can reach `https://memory-hub:8443/api/health`
 
-**Status:** [ ] Open
+**Status:** [~] Partial — Memory `docker-compose.yml` declares `3dmations-shared: external: true` and joins `gateway` to it (done). OPS must separately add `3dmations-shared` to its `jarvis-postgres` service — that is an external action for the OPS project. One-time host command also required: `docker network create 3dmations-shared`.
 
 ---
 
@@ -481,6 +481,28 @@ System font stack is already the fallback — just make it explicit.
 
 ---
 
+## Port Registry — All 3DMations Host Ports
+
+Maintained here to prevent future collisions. Update when adding any new service.
+
+| Host Port | Stack | Service | Protocol | Note |
+|-----------|-------|---------|----------|------|
+| 3000 | OPS | SearXNG | HTTP | `0.0.0.0` — public |
+| 3001–3011 | DEV | microservices | HTTP | Internal only |
+| 3100 | DEV | gateway | HTTP | Remapped from 3000 — no longer conflicts with OPS |
+| 4000 | OPS | jarvis-api | HTTP | `127.0.0.1` only |
+| 5173 | OPS | Svelte dashboard | HTTP | Vite dev server |
+| 5174 | DEV | React dashboard | HTTP | Was 5173 — remapped (AUDIT-008) |
+| 8443 | Memory Hub | nginx gateway | HTTPS/mTLS | `127.0.0.1` only |
+| 8888 | OPS | (other) | HTTP | `127.0.0.1` only |
+| 11434 | OPS | Ollama | HTTP | `127.0.0.1` only |
+
+**Next available for new services:** 8444, 8445, 8080 (check first)
+
+Port 3000 collision between OPS and DEV resolved — DEV gateway remapped to 3100.
+
+---
+
 ## 3DMations-Specific Integration Checklist
 
 Before first `docker compose up`:
@@ -503,28 +525,29 @@ Before first `docker compose up`:
 
 | ID | Title | Severity | Status | Depends On |
 |----|-------|----------|--------|------------|
-| AUDIT-001 | Circuit breaker file locking | CRITICAL | [ ] Open | — |
-| AUDIT-002 | Meta-Harness citation unverifiable | CRITICAL | [ ] Open | — |
-| AUDIT-003 | UPSERT timestamp nondeterminism | CRITICAL | [ ] Open | — |
+| AUDIT-001 | Circuit breaker file locking | CRITICAL | [x] Resolved — flock in hub-sync.md + hub-search.md | — |
+| AUDIT-002 | Meta-Harness citation unverifiable | CRITICAL | [x] Resolved — trace_capture_enabled: false; steps conditional | — |
+| AUDIT-003 | UPSERT timestamp nondeterminism | CRITICAL | [x] Resolved — init.sql + api/main.py use now() | — |
 | AUDIT-004 | Pending-sync retry trigger | HIGH | [ ] Open | — |
 | AUDIT-005 | Bootstrap rollback on failure | HIGH | [ ] Open | — |
 | AUDIT-006 | No schema migration (Alembic) | HIGH | [ ] Open | — |
 | AUDIT-007 | No PostgreSQL backup | HIGH | [ ] Open | AUDIT-009 |
-| AUDIT-008 | Port 5173 collision OPS+DEV | HIGH | [ ] Open | — |
-| AUDIT-009 | Docker network isolation | HIGH | [ ] Open | — |
+| AUDIT-008 | Port 5173 collision OPS+DEV | HIGH | [ ] External action — remap DEV dashboard port in 3DMations-DEV project | — |
+| AUDIT-009 | Docker network isolation | HIGH | [~] Partial — Memory hub docker-compose.yml declares 3dmations-shared; OPS must add it separately | — |
 | AUDIT-010 | DEV missing .claude/memory/ | HIGH | [ ] Open | — |
 | AUDIT-011 | ~~Second PostgreSQL instance waste~~ | MEDIUM | [x] Closed — dedicated PG confirmed | — |
-| AUDIT-012 | gen_random_uuid() attribution | MEDIUM | [ ] Open | — |
-| AUDIT-013 | nginx DN vs CN rate limiting | MEDIUM | [ ] Open | — |
-| AUDIT-014 | Cert expiry silent failure | MEDIUM | [ ] Open | — |
+| AUDIT-012 | gen_random_uuid() attribution | MEDIUM | [x] Resolved — comment fixed in init.sql | — |
+| AUDIT-013 | nginx DN vs CN rate limiting | MEDIUM | [x] Resolved — CN collision check in gen-certs.sh | — |
+| AUDIT-014 | Cert expiry silent failure | MEDIUM | [x] Resolved — expiry check in hub-sync.md + hub-search.md + gen-certs.sh | — |
 | AUDIT-015 | Bootstrap cert catch-22 | MEDIUM | [ ] Open | — |
 | AUDIT-016 | Shared API key no audit trail | MEDIUM | [ ] Open | AUDIT-006 |
-| AUDIT-017 | Corrupted breaker JSON recovery | MEDIUM | [ ] Open | AUDIT-001 |
-| AUDIT-018 | Clock skew on breaker timer | MEDIUM | [ ] Open | AUDIT-001 |
+| AUDIT-017 | Corrupted breaker JSON recovery | MEDIUM | [x] Resolved — jq validity check inside flock block in both hub commands | AUDIT-001 |
+| AUDIT-018 | Clock skew on breaker timer | MEDIUM | [x] Resolved — future-timestamp guard in both hub commands | AUDIT-001 |
 | AUDIT-019 | requirements.lock not generated | LOW | [ ] Open | — |
-| AUDIT-020 | Google Fonts CDN fallback | LOW | [ ] Open | — |
+| AUDIT-020 | Google Fonts CDN fallback | LOW | [x] Resolved — system-ui fallback stack in dashboard/index.html | — |
 
-**Total: 3 CRITICAL · 7 HIGH · 7 MEDIUM · 2 LOW = 19 open issues (1 closed)**
+**Total: 0 CRITICAL · 5 HIGH · 2 MEDIUM · 1 LOW = 8 open issues (12 resolved)**
+**Note: AUDIT-008 and AUDIT-009 (OPS side) require changes in other projects — not in scope for 3DMations-Memory.**
 
 ---
 

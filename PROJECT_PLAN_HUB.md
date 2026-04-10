@@ -509,11 +509,12 @@ Maintained here to prevent future collisions. Update when adding any new service
 ### Memory Hub — this project (`docker-compose.yml`)
 | Host Port | Container | Service | Note |
 |-----------|-----------|---------|------|
-| `127.0.0.1:8443` | memory-gateway | nginx mTLS | **Only exposed port** |
+| `192.168.1.165:8443` | memory-gateway | nginx mTLS | LAN-accessible; mTLS is auth layer |
 | — | memory-api | FastAPI | Internal only |
 | — | memory-db | PostgreSQL 16 | Internal only |
 
 **Hub port 8443 is confirmed clear across all stacks.**
+**Hub LAN IP:** `192.168.1.165` — confirmed reachable from LAN.
 **Next available:** 8444, 8445 (avoid everything in the tables above)
 
 ---
@@ -536,7 +537,11 @@ Before first `docker compose up`:
 
 ---
 
-## OPS/DEV Client Integration — Do When Projects Are Idle
+## OPS/DEV Client Integration
+
+**Rollout order:**
+1. **Phase 1 — Local (this machine):** OPS + DEV first. Same machine, same cert (`aiwork-host`). Do when each session is idle.
+2. **Phase 2 — LAN machines:** CachyOS, Mac Mini, Work Laptop. Hub now bound to `192.168.1.165:8443`. Certs pre-generated in `certs/clients/{machine}/`. Deploy once Phase 1 is stable and metrics are verified in dashboard.
 
 These steps connect 3DMations-OPS and 3DMations-DEV to the Memory Hub as client machines.
 **Do not run these until each project's Claude Code session is idle.**
@@ -576,13 +581,15 @@ cp /home/aiwork/Documents/Projects/3DMations-Memory/.claude/commands/hub-search.
 Create `.claude/hub-config.env` in each project (replace API_KEY_HERE with value from Memory Hub's `.env`):
 
 ```bash
-# .claude/hub-config.env (same content for OPS and DEV)
-HUB_URL=https://memory-hub:8443
+# .claude/hub-config.env (same content for OPS and DEV — same machine, same cert)
+HUB_URL=https://192.168.1.165:8443
 HUB_API_KEY=API_KEY_HERE
 HUB_CERT_DIR=/home/aiwork/Documents/Projects/3DMations-Memory/certs/clients/aiwork-host
+HUB_CA=/home/aiwork/Documents/Projects/3DMations-Memory/certs/ca.crt
 ```
 
-Note: `HUB_CERT_DIR` points to the shared cert directory in the Memory project. Both OPS and DEV use the same client cert since they run on the same machine.
+Note: OPS and DEV share the `aiwork-host` cert — they are the same physical machine.
+Replace `API_KEY_HERE` with the value of `API_KEY` from `.env` in this project.
 
 Add to each project's `.gitignore` if not already present:
 ```
@@ -642,18 +649,61 @@ Add to OPS `.gitignore` and DEV `.gitignore`:
 .claude/hub-breaker.json
 ```
 
-### Checklist
+### Phase 1 Checklist — Local (OPS + DEV on this machine)
 
 - [ ] OPS: hub-sync.md + hub-search.md copied
 - [ ] OPS: hub-config.env created with correct API key
 - [ ] OPS: hub-breaker.json initialized
-- [ ] OPS: hub-config.env added to .gitignore
+- [ ] OPS: hub-config.env + hub-breaker.json added to .gitignore
 - [ ] OPS: connection verified (curl returns 200)
+- [ ] OPS: first /hub-sync run — entries visible in dashboard
 - [ ] DEV: hub-sync.md + hub-search.md copied
 - [ ] DEV: hub-config.env created with correct API key
 - [ ] DEV: hub-breaker.json initialized
-- [ ] DEV: hub-config.env added to .gitignore
+- [ ] DEV: hub-config.env + hub-breaker.json added to .gitignore
 - [ ] DEV: connection verified (curl returns 200)
+- [ ] DEV: first /hub-sync run — entries visible in dashboard
+- [ ] Dashboard shows 3 machines (aiwork-host via OPS, aiwork-host via DEV, aiwork-host via Memory)
+- [ ] Dashboard metrics verified: active count, capacity bar, category breakdown
+
+---
+
+## Phase 2 — LAN Machine Integration (after Phase 1 stable)
+
+**Pre-generated certs** (all expire 2027-04-10):
+
+| Machine | Cert location | CN |
+|---------|--------------|-----|
+| CachyOS | `certs/clients/cachyos/` | cachyos |
+| Mac Mini | `certs/clients/macmini/` | macmini |
+| Work Laptop | `certs/clients/worklaptop/` | worklaptop |
+
+**Per-machine setup (repeat for each):**
+
+```bash
+# 1. Copy certs to remote machine (replace USER and HOSTNAME)
+scp certs/clients/cachyos/client.crt \
+    certs/clients/cachyos/client.key \
+    certs/clients/cachyos/client.p12 \
+    certs/ca.crt \
+    USER@cachyos:~/.claude-hub-certs/
+
+# 2. SSH into remote machine, create hub-config.env in each project:
+# HUB_URL=https://192.168.1.165:8443
+# HUB_API_KEY=<same key>
+# HUB_CERT_DIR=~/.claude-hub-certs
+# HUB_CA=~/.claude-hub-certs/ca.crt
+
+# 3. Install .p12 in browser on that machine (password: memory-hub)
+```
+
+### Phase 2 Checklist
+
+- [ ] Phase 1 complete and stable (all local metrics verified)
+- [ ] CachyOS: certs copied, hub-config.env created, connection verified
+- [ ] Mac Mini: certs copied, hub-config.env created, connection verified
+- [ ] Work Laptop: certs copied, hub-config.env created, connection verified
+- [ ] Dashboard shows all machines syncing entries
 
 ---
 

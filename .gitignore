@@ -1,4 +1,9 @@
 CLAUDE.local.md
+__pycache__/
+*.pyc
+*.pyo
+.env
+certs/
 .claude/settings.local.json
 .claude/memory/learnings/
 .claude/memory/archive/

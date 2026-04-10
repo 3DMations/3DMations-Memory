@@ -485,21 +485,36 @@ System font stack is already the fallback — just make it explicit.
 
 Maintained here to prevent future collisions. Update when adding any new service.
 
-| Host Port | Stack | Service | Protocol | Note |
-|-----------|-------|---------|----------|------|
-| 3000 | OPS | SearXNG | HTTP | `0.0.0.0` — public |
-| 3001–3011 | DEV | microservices | HTTP | Internal only |
-| 3100 | DEV | gateway | HTTP | Remapped from 3000 — no longer conflicts with OPS |
-| 4000 | OPS | jarvis-api | HTTP | `127.0.0.1` only |
-| 5173 | OPS | Svelte dashboard | HTTP | Vite dev server |
-| 5174 | DEV | React dashboard | HTTP | Was 5173 — remapped (AUDIT-008) |
-| 8443 | Memory Hub | nginx gateway | HTTPS/mTLS | `127.0.0.1` only |
-| 8888 | OPS | (other) | HTTP | `127.0.0.1` only |
-| 11434 | OPS | Ollama | HTTP | `127.0.0.1` only |
+### OPS — automation stack (`docker/automation/docker-compose.yml`)
+| Host Port | Container | Service | Note |
+|-----------|-----------|---------|------|
+| `127.0.0.1:4000` | jarvis-api | REST API | Loopback only |
+| — | jarvis-postgres | PostgreSQL 16 | No host port |
+| — | jarvis-core | Orchestrator | No host port |
 
-**Next available for new services:** 8444, 8445, 8080 (check first)
+### OPS — inference stack (`docker/inference/docker-compose.yml`)
+| Host Port | Container | Service | Note |
+|-----------|-----------|---------|------|
+| `0.0.0.0:3000` | jarvis-webui | Open WebUI | Public-facing |
+| `127.0.0.1:8888` | jarvis-searxng | SearXNG | Loopback only |
+| `127.0.0.1:11434` | jarvis-ollama | Ollama (GPU) | Loopback only |
 
-Port 3000 collision between OPS and DEV resolved — DEV gateway remapped to 3100.
+### DEV (`docker-compose.yml`)
+| Host Port | Container | Service | Note |
+|-----------|-----------|---------|------|
+| 3001–3011 | various | microservices | — |
+| 3100 | gateway | API gateway | Was 3000 — remapped, no conflict |
+| 5173 | dashboard | React dashboard | Vite dev server |
+
+### Memory Hub — this project (`docker-compose.yml`)
+| Host Port | Container | Service | Note |
+|-----------|-----------|---------|------|
+| `127.0.0.1:8443` | memory-gateway | nginx mTLS | **Only exposed port** |
+| — | memory-api | FastAPI | Internal only |
+| — | memory-db | PostgreSQL 16 | Internal only |
+
+**Hub port 8443 is confirmed clear across all stacks.**
+**Next available:** 8444, 8445 (avoid everything in the tables above)
 
 ---
 

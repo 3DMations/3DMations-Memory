@@ -10,6 +10,7 @@ services:
       - ./certs/ca.crt:/etc/nginx/certs/ca.crt:ro
       - ./certs/server.crt:/etc/nginx/certs/server.crt:ro
       - ./certs/server.key:/etc/nginx/certs/server.key:ro
+      - ./dashboard:/usr/share/nginx/html:ro
     networks:
       - hub-internal
       - 3dmations-shared

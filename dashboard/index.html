@@ -5,194 +5,489 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Claude Memory Hub</title>
   <style>
-    /* AUDIT-020: System font fallback if Google Fonts CDN is blocked (air-gapped networks) */
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       background: #0f1117; color: #e1e4e8; min-height: 100vh; padding: 2rem;
     }
-    header { margin-bottom: 2rem; }
+    /* ── Header ── */
+    header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2rem; }
     h1 { font-size: 1.5rem; font-weight: 600; color: #f0f6fc; }
     h1 span { color: #58a6ff; }
-    .subtitle { color: #8b949e; font-size: 0.85rem; margin-top: 0.25rem; }
+    .status-pill {
+      font-size: 0.78rem; padding: 0.25rem 0.65rem; border-radius: 12px;
+      font-weight: 500; margin-top: 0.15rem; display: inline-block;
+    }
+    .status-pill.ok     { background: #1a3a2a; color: #3fb950; }
+    .status-pill.warn   { background: #3a2a10; color: #d29922; }
+    .status-pill.error  { background: #3a1a1a; color: #f85149; }
+    .refresh-spin {
+      display: inline-block; width: 10px; height: 10px;
+      border: 2px solid #444; border-top-color: #58a6ff;
+      border-radius: 50%; animation: spin 0.8s linear infinite; margin-left: 6px;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    /* ── Stats grid ── */
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
       gap: 1rem; margin-bottom: 1.5rem;
     }
     .card {
       background: #161b22; border: 1px solid #30363d; border-radius: 8px;
-      padding: 1.25rem; text-align: center;
+      padding: 1.1rem; text-align: center;
     }
-    .card .value { font-size: 2rem; font-weight: 600; color: #58a6ff; }
-    .card .label { font-size: 0.8rem; color: #8b949e; margin-top: 0.25rem; }
+    .card .value { font-size: 1.9rem; font-weight: 600; color: #58a6ff; }
+    .card .label { font-size: 0.78rem; color: #8b949e; margin-top: 0.2rem; }
+    /* ── Capacity bar ── */
+    .cap-section {
+      background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+      padding: 1rem 1.25rem; margin-bottom: 1.5rem;
+    }
+    .cap-wrap { background: #21262d; border-radius: 4px; height: 8px; overflow: hidden; }
+    .cap-bar  { height: 100%; transition: width 0.6s, background 0.3s; }
+    .cap-label { font-size: 0.75rem; color: #8b949e; margin-top: 0.4rem; }
+    /* ── Section ── */
     .section {
       background: #161b22; border: 1px solid #30363d; border-radius: 8px;
       padding: 1.25rem; margin-bottom: 1.5rem;
     }
-    .section h2 { font-size: 0.95rem; font-weight: 600; color: #c9d1d9; margin-bottom: 1rem; }
-    .cap-wrap { background: #21262d; border-radius: 4px; height: 8px; overflow: hidden; }
-    .cap-bar  { height: 100%; transition: width 0.5s, background 0.3s; background: #238636; }
-    .cap-label { font-size: 0.75rem; color: #8b949e; margin-top: 0.4rem; }
-    .search-row { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
-    .search-row input {
-      flex: 1; padding: 0.5rem 0.75rem;
-      background: #0d1117; border: 1px solid #30363d; border-radius: 6px;
-      color: #e1e4e8; font-size: 0.9rem; outline: none;
+    .section h2 { font-size: 0.93rem; font-weight: 600; color: #c9d1d9; margin-bottom: 0.9rem; }
+    /* ── Filter bar ── */
+    .filter-bar { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    .filter-bar select, .filter-bar input[type=text] {
+      padding: 0.4rem 0.65rem; background: #0d1117; border: 1px solid #30363d;
+      border-radius: 6px; color: #e1e4e8; font-size: 0.85rem; outline: none;
     }
-    .search-row input:focus { border-color: #58a6ff; }
-    .search-row button {
-      padding: 0.5rem 1.1rem; background: #238636; border: none;
-      border-radius: 6px; color: #fff; font-size: 0.9rem; cursor: pointer;
+    .filter-bar select:focus, .filter-bar input:focus { border-color: #58a6ff; }
+    .filter-bar select { min-width: 130px; }
+    .filter-bar .search-input { flex: 1; min-width: 200px; }
+    /* ── Buttons ── */
+    .btn {
+      padding: 0.4rem 0.9rem; border: none; border-radius: 6px;
+      font-size: 0.85rem; cursor: pointer; font-weight: 500;
     }
-    .search-row button:hover { background: #2ea043; }
-    table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
-    th { text-align: left; padding: 0.5rem 0.4rem; color: #8b949e; border-bottom: 1px solid #30363d; }
-    td { padding: 0.45rem 0.4rem; border-bottom: 1px solid #21262d; vertical-align: top; }
-    td:first-child { color: #c9d1d9; max-width: 280px; }
+    .btn-primary { background: #238636; color: #fff; }
+    .btn-primary:hover { background: #2ea043; }
+    .btn-ghost {
+      background: #21262d; color: #c9d1d9; border: 1px solid #30363d;
+    }
+    .btn-ghost:hover { background: #30363d; }
+    .btn-ghost.active { background: #1f3a5f; color: #58a6ff; border-color: #1f6feb; }
+    /* ── Table ── */
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    th {
+      text-align: left; padding: 0.5rem 0.5rem; color: #8b949e;
+      border-bottom: 1px solid #30363d; white-space: nowrap;
+    }
+    tr.entry-row { cursor: pointer; }
+    tr.entry-row:hover td { background: #1c2128; }
+    td { padding: 0.42rem 0.5rem; border-bottom: 1px solid #21262d; vertical-align: middle; }
+    td.title-cell { color: #c9d1d9; max-width: 260px; }
+    /* ── Badges ── */
+    .badge {
+      display: inline-block; padding: 0.1rem 0.45rem; border-radius: 3px;
+      font-size: 0.7rem; font-weight: 500; white-space: nowrap;
+    }
+    .badge-type-mistake    { background:#3a1a1a; color:#f85149; }
+    .badge-type-decision   { background:#1a2a3a; color:#58a6ff; }
+    .badge-type-anti-pattern { background:#3a2a10; color:#d29922; }
+    .badge-type-insight    { background:#1a3a2a; color:#3fb950; }
+    .badge-type-pattern    { background:#1f3a5f; color:#79c0ff; }
+    .badge-type-learning   { background:#21262d; color:#8b949e; }
+    .badge-sev-critical { background:#f85149; color:#fff; }
+    .badge-sev-major    { background:#d29922; color:#000; }
+    .badge-sev-minor    { background:#21262d; color:#8b949e; }
+    .badge-sev-blocker  { background:#9e1c1c; color:#fff; }
     .tag {
-      display: inline-block; padding: 0.1rem 0.4rem;
+      display: inline-block; padding: 0.1rem 0.35rem;
       background: #1f3a5f; border-radius: 3px;
-      font-size: 0.72rem; color: #79c0ff; margin: 0.1rem 0.1rem 0 0;
+      font-size: 0.7rem; color: #79c0ff; margin: 0.1rem 0.1rem 0 0;
     }
-    .status-line { font-size: 0.8rem; margin-top: 0.25rem; }
-    .ok    { color: #3fb950; }
-    .warn  { color: #d29922; }
-    .error { color: #f85149; }
+    /* ── Detail expansion ── */
+    tr.detail-row td {
+      background: #0d1117; padding: 0.75rem 1rem;
+      border-bottom: 1px solid #30363d;
+    }
+    .detail-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;
+      font-size: 0.82rem;
+    }
+    .detail-field { display: flex; flex-direction: column; gap: 0.2rem; }
+    .detail-field .df-label { color: #8b949e; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .detail-field .df-val { color: #c9d1d9; line-height: 1.4; }
+    /* ── Pagination ── */
+    .pagination { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.75rem; font-size: 0.82rem; color: #8b949e; }
+    .pagination .btn { padding: 0.3rem 0.7rem; font-size: 0.82rem; }
+    /* ── Misc ── */
     .muted { color: #8b949e; font-size: 0.83rem; padding: 0.5rem 0; }
+    .text-right { text-align: right; }
+    .machine-chip {
+      font-size: 0.72rem; color: #8b949e; font-family: monospace;
+      background: #21262d; border-radius: 3px; padding: 0.1rem 0.35rem;
+    }
   </style>
 </head>
 <body>
   <header>
-    <h1>Claude Memory <span>Hub</span></h1>
-    <p class="subtitle status-line ok" id="status">Connecting…</p>
+    <div>
+      <h1>Claude Memory <span>Hub</span></h1>
+      <span class="status-pill error" id="status">● Connecting…</span>
+    </div>
+    <div id="health-section" style="text-align:right;font-size:0.78rem;color:#8b949e;padding-top:0.2rem">
+      v2.3.0
+    </div>
   </header>
 
+  <!-- Stat cards -->
   <div class="grid">
     <div class="card"><div class="value" id="s-active">—</div><div class="label">Active Entries</div></div>
     <div class="card"><div class="value" id="s-archived">—</div><div class="label">Archived</div></div>
     <div class="card"><div class="value" id="s-machines">—</div><div class="label">Machines</div></div>
+    <div class="card"><div class="value" id="s-categories">—</div><div class="label">Categories</div></div>
     <div class="card"><div class="value" id="s-cap">—</div><div class="label">Capacity Used</div></div>
   </div>
 
-  <div class="section">
-    <div class="cap-wrap"><div class="cap-bar" id="cap-bar" style="width:0%"></div></div>
+  <!-- Capacity bar -->
+  <div class="cap-section">
+    <div class="cap-wrap"><div class="cap-bar" id="cap-bar" style="width:0%;background:#238636"></div></div>
     <div class="cap-label" id="cap-label">Loading…</div>
   </div>
 
+  <!-- Search + filter -->
   <div class="section">
-    <h2>Search</h2>
-    <div class="search-row">
-      <input id="q" type="text" placeholder="Keyword, tag, or category…" />
-      <button onclick="doSearch()">Search</button>
+    <h2>Search &amp; Filter</h2>
+    <div class="filter-bar">
+      <input class="search-input" id="q" type="text" placeholder="Keyword or #tag …" />
+      <select id="f-category"><option value="">All categories</option></select>
+      <select id="f-machine"><option value="">All machines</option></select>
+      <button class="btn btn-ghost" id="f-status-btn" onclick="toggleStatus()">Showing: Active</button>
+      <button class="btn btn-primary" onclick="runSearch()">Search</button>
+      <button class="btn btn-ghost" onclick="clearSearch()">Clear</button>
     </div>
     <div id="search-out"></div>
+    <div class="pagination" id="search-page" style="display:none"></div>
   </div>
 
+  <!-- Recent entries -->
   <div class="section">
     <h2>Recent Entries</h2>
+    <div class="filter-bar" style="margin-bottom:0.75rem">
+      <select id="e-category"><option value="">All categories</option></select>
+      <select id="e-machine"><option value="">All machines</option></select>
+    </div>
     <div id="entries-out"><p class="muted">Loading…</p></div>
+    <div class="pagination" id="entries-page"></div>
   </div>
 
   <script>
+  (() => {
     const BASE = '/api';
-    // API key injected server-side or set manually for local dev
-    const KEY  = window._HUB_KEY || '';
+    let KEY = '';
+    let statusFilter = 'active';
 
+    // ── Pagination state ──────────────────────────────────────────────────────
+    const page = { entries: { offset: 0, limit: 25, total: 0 }, search: { offset: 0, limit: 20, total: 0 } };
+
+    // ── XSS-safe DOM helpers ──────────────────────────────────────────────────
+    function esc(v) {
+      const d = document.createElement('div');
+      d.textContent = v ?? '';
+      return d.innerHTML;
+    }
+    function el(tag, attrs = {}, ...children) {
+      const e = document.createElement(tag);
+      Object.entries(attrs).forEach(([k, v]) => {
+        if (k === 'className') e.className = v;
+        else if (k === 'style')   e.style.cssText = v;
+        else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+        else e.setAttribute(k, v);
+      });
+      children.forEach(c => e.append(typeof c === 'string' ? document.createTextNode(c) : c));
+      return e;
+    }
+
+    // ── API ───────────────────────────────────────────────────────────────────
     async function apiFetch(path, opts = {}) {
       const r = await fetch(BASE + path, {
-        headers: { 'X-API-Key': KEY, 'Content-Type': 'application/json', ...opts.headers },
+        headers: { 'X-API-Key': KEY, 'Content-Type': 'application/json', ...(opts.headers || {}) },
         ...opts,
       });
-      if (!r.ok) throw new Error('HTTP ' + r.status);
+      if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + path);
       return r.json();
     }
 
+    // ── Bootstrap: get API key ────────────────────────────────────────────────
+    async function bootstrap() {
+      try {
+        const t = await fetch(BASE + '/token');
+        if (!t.ok) throw new Error('token ' + t.status);
+        const data = await t.json();
+        KEY = data.key || '';
+      } catch (e) {
+        setStatus('error', '● Token fetch failed — ' + e.message);
+      }
+    }
+
+    // ── Status indicator ──────────────────────────────────────────────────────
+    function setStatus(type, text, spinning = false) {
+      const el = document.getElementById('status');
+      el.className = 'status-pill ' + type;
+      el.textContent = text;
+      if (spinning) el.insertAdjacentHTML('beforeend', '<span class="refresh-spin"></span>');
+    }
+
+    // ── Health check ──────────────────────────────────────────────────────────
+    async function checkHealth() {
+      try {
+        const h = await fetch(BASE + '/health');
+        const d = await h.json();
+        document.getElementById('health-section').textContent = 'v' + (d.version || '?') + ' · ' + (d.status === 'ok' ? '✓ healthy' : '✗ ' + d.status);
+      } catch {
+        document.getElementById('health-section').textContent = '✗ API unreachable';
+      }
+    }
+
+    // ── Stats ─────────────────────────────────────────────────────────────────
     async function loadStats() {
+      setStatus('warn', '● Refreshing…', true);
       try {
         const s = await apiFetch('/stats');
-        document.getElementById('s-active').textContent   = s.active   ?? '—';
-        document.getElementById('s-archived').textContent = s.archived ?? '—';
-        document.getElementById('s-machines').textContent = s.machines ?? '—';
-        document.getElementById('s-cap').textContent      = (s.capacity_pct ?? 0) + '%';
+        document.getElementById('s-active').textContent     = s.active      ?? '—';
+        document.getElementById('s-archived').textContent   = s.archived    ?? '—';
+        document.getElementById('s-machines').textContent   = s.machines    ?? '—';
+        document.getElementById('s-categories').textContent = s.categories  ?? '—';
+        document.getElementById('s-cap').textContent        = (s.capacity_pct ?? 0) + '%';
 
+        const pct = s.capacity_pct ?? 0;
         const bar = document.getElementById('cap-bar');
-        bar.style.width      = (s.capacity_pct ?? 0) + '%';
-        bar.style.background = s.capacity_pct > 80 ? '#f85149' : s.capacity_pct > 60 ? '#d29922' : '#238636';
+        bar.style.width      = pct + '%';
+        bar.style.background = pct > 80 ? '#f85149' : pct > 60 ? '#d29922' : '#238636';
 
+        const sync = s.last_sync ? new Date(s.last_sync).toLocaleString() : 'never';
         document.getElementById('cap-label').textContent =
-          `${s.active ?? 0} / 500 entries  ·  last sync: ${s.last_sync ? new Date(s.last_sync).toLocaleString() : 'never'}`;
+          `${s.active ?? 0} / 500 entries · last sync: ${sync}`;
 
-        const el = document.getElementById('status');
-        el.textContent = '● Connected';
-        el.className   = 'subtitle status-line ok';
+        setStatus('ok', '● Connected');
       } catch (e) {
-        const el = document.getElementById('status');
-        el.textContent = '● Offline — ' + e.message;
-        el.className   = 'subtitle status-line error';
+        setStatus('error', '● Offline — ' + e.message);
       }
     }
 
-    async function loadEntries() {
+    // ── Populate filter dropdowns ─────────────────────────────────────────────
+    async function loadFilters() {
       try {
-        const d = await apiFetch('/entries?limit=25');
-        renderTable(d.entries, document.getElementById('entries-out'));
-      } catch (e) {
-        document.getElementById('entries-out').innerHTML =
-          `<p class="muted error">${e.message}</p>`;
-      }
+        const [cats, machines] = await Promise.all([
+          apiFetch('/categories'),
+          apiFetch('/machines'),
+        ]);
+
+        ['f-category', 'e-category'].forEach(id => {
+          const sel = document.getElementById(id);
+          sel.innerHTML = '<option value="">All categories</option>';
+          (cats.categories || []).forEach(c => {
+            const o = document.createElement('option');
+            o.value = c.category;
+            o.textContent = `${c.category} (${c.count})`;
+            sel.appendChild(o);
+          });
+        });
+
+        ['f-machine', 'e-machine'].forEach(id => {
+          const sel = document.getElementById(id);
+          sel.innerHTML = '<option value="">All machines</option>';
+          (machines.machines || []).forEach(m => {
+            const o = document.createElement('option');
+            o.value = m; o.textContent = m;
+            sel.appendChild(o);
+          });
+        });
+      } catch { /* filters are optional — fail silently */ }
     }
 
-    function renderTable(rows, container) {
+    // ── Table rendering ───────────────────────────────────────────────────────
+    const TYPE_CLASS = {
+      mistake: 'badge-type-mistake', decision: 'badge-type-decision',
+      'anti-pattern': 'badge-type-anti-pattern', insight: 'badge-type-insight',
+      pattern: 'badge-type-pattern', learning: 'badge-type-learning',
+    };
+    const SEV_CLASS = {
+      critical: 'badge-sev-critical', major: 'badge-sev-major',
+      minor: 'badge-sev-minor', blocker: 'badge-sev-blocker',
+    };
+
+    function renderTable(rows, container, paginationEl) {
+      container.innerHTML = '';
       if (!rows || !rows.length) {
-        container.innerHTML = '<p class="muted">No entries.</p>';
+        container.appendChild(el('p', { className: 'muted' }, 'No entries.'));
+        if (paginationEl) paginationEl.style.display = 'none';
         return;
       }
-      const trs = rows.map(e => `
-        <tr>
-          <td>${e.title}</td>
-          <td>${e.category}${e.subcategory ? '/' + e.subcategory : ''}</td>
-          <td>${(e.tags || []).map(t => `<span class="tag">${t}</span>`).join('')}</td>
-          <td style="text-align:right">${e.recurrence_count}</td>
-          <td style="text-align:right">${((e.confidence_score || 0) * 100).toFixed(0)}%</td>
-          <td>${e.last_seen || ''}</td>
-        </tr>`).join('');
-      container.innerHTML = `
-        <table>
-          <thead><tr>
-            <th>Title</th><th>Category</th><th>Tags</th>
-            <th style="text-align:right">Rec.</th>
-            <th style="text-align:right">Conf.</th>
-            <th>Last Seen</th>
-          </tr></thead>
-          <tbody>${trs}</tbody>
-        </table>`;
+      if (paginationEl) paginationEl.style.display = '';
+
+      const thead = `<thead><tr>
+        <th>Type</th><th>Sev</th><th>Title</th><th>Category</th>
+        <th>Machine</th><th>Tags</th>
+        <th class="text-right">Rec.</th><th class="text-right">Conf.</th>
+        <th>Last Seen</th>
+      </tr></thead>`;
+
+      const tbody = document.createElement('tbody');
+
+      rows.forEach((e, i) => {
+        const typeClass = TYPE_CLASS[e.type] || 'badge-type-learning';
+        const sevClass  = SEV_CLASS[e.severity] || 'badge-sev-minor';
+
+        const row = document.createElement('tr');
+        row.className = 'entry-row';
+        row.innerHTML = `
+          <td><span class="badge ${esc(typeClass)}">${esc(e.type || 'learning')}</span></td>
+          <td><span class="badge ${esc(sevClass)}">${esc(e.severity || 'minor')}</span></td>
+          <td class="title-cell">${esc(e.title)}</td>
+          <td>${esc(e.category)}${e.subcategory ? '/' + esc(e.subcategory) : ''}</td>
+          <td><span class="machine-chip">${esc(e.machine_id || '—')}</span></td>
+          <td>${(e.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('')}</td>
+          <td class="text-right">${esc(String(e.recurrence_count ?? 0))}</td>
+          <td class="text-right">${((e.confidence_score || 0) * 100).toFixed(0)}%</td>
+          <td>${esc(e.last_seen || '')}</td>`;
+
+        // Expandable detail row
+        const detail = document.createElement('tr');
+        detail.className = 'detail-row';
+        detail.style.display = 'none';
+        const fields = [
+          ['Trigger Context',  e.trigger_context],
+          ['Root Cause',       e.root_cause],
+          ['What Happened',    e.what_happened],
+          ['Correct Solution', e.correct_solution],
+          ['Prevention Rule',  e.prevention_rule],
+          ['Context Notes',    e.context_notes],
+        ].filter(([, v]) => v);
+
+        if (fields.length) {
+          const grid = el('div', { className: 'detail-grid' },
+            ...fields.map(([label, val]) =>
+              el('div', { className: 'detail-field' },
+                el('span', { className: 'df-label' }, label),
+                el('span', { className: 'df-val' }, val)
+              )
+            )
+          );
+          const td = document.createElement('td');
+          td.colSpan = 9;
+          td.appendChild(grid);
+          detail.appendChild(td);
+        } else {
+          const td = document.createElement('td');
+          td.colSpan = 9;
+          td.appendChild(el('span', { className: 'muted' }, 'No detail fields available.'));
+          detail.appendChild(td);
+        }
+
+        row.addEventListener('click', () => {
+          detail.style.display = detail.style.display === 'none' ? '' : 'none';
+        });
+
+        tbody.appendChild(row);
+        tbody.appendChild(detail);
+      });
+
+      const table = document.createElement('table');
+      table.innerHTML = thead;
+      table.appendChild(tbody);
+      container.appendChild(table);
     }
 
-    async function doSearch() {
-      const q   = document.getElementById('q').value.trim();
-      const out = document.getElementById('search-out');
-      if (!q) { out.innerHTML = ''; return; }
-      out.innerHTML = '<p class="muted">Searching…</p>';
+    // ── Pagination controls ───────────────────────────────────────────────────
+    function renderPagination(paginationEl, key, loadFn) {
+      const p = page[key];
+      const current = Math.floor(p.offset / p.limit) + 1;
+      const total   = Math.ceil(p.total / p.limit) || 1;
+      paginationEl.innerHTML = '';
+      paginationEl.append(
+        el('button', { className: 'btn btn-ghost', onclick: () => { if (p.offset > 0) { p.offset -= p.limit; loadFn(); } } }, '← Prev'),
+        document.createTextNode(` Page ${current} of ${total} (${p.total} entries) `),
+        el('button', { className: 'btn btn-ghost', onclick: () => { if (p.offset + p.limit < p.total) { p.offset += p.limit; loadFn(); } } }, 'Next →'),
+      );
+    }
+
+    // ── Recent entries ────────────────────────────────────────────────────────
+    async function loadEntries() {
       try {
-        const d = await apiFetch('/search', {
-          method: 'POST',
-          body: JSON.stringify({ query: q, limit: 20 }),
-        });
-        renderTable(d.results, out);
+        const cat = document.getElementById('e-category').value;
+        const mac = document.getElementById('e-machine').value;
+        let url = `/entries?limit=${page.entries.limit}&offset=${page.entries.offset}&status=${statusFilter}`;
+        if (cat) url += '&category=' + encodeURIComponent(cat);
+        if (mac) url += '&machine_id=' + encodeURIComponent(mac);
+        const d = await apiFetch(url);
+        page.entries.total = d.count;
+        renderTable(d.entries, document.getElementById('entries-out'), document.getElementById('entries-page'));
+        renderPagination(document.getElementById('entries-page'), 'entries', loadEntries);
       } catch (e) {
-        out.innerHTML = `<p class="muted error">${e.message}</p>`;
+        document.getElementById('entries-out').innerHTML = `<p class="muted">${esc(e.message)}</p>`;
       }
     }
 
-    document.getElementById('q').addEventListener('keydown', e => {
-      if (e.key === 'Enter') doSearch();
-    });
+    // ── Search ────────────────────────────────────────────────────────────────
+    function toggleStatus() {
+      statusFilter = statusFilter === 'active' ? 'archived' : 'active';
+      document.getElementById('f-status-btn').textContent = 'Showing: ' + (statusFilter === 'active' ? 'Active' : 'Archived');
+      document.getElementById('f-status-btn').className = 'btn btn-ghost' + (statusFilter === 'archived' ? ' active' : '');
+      page.entries.offset = 0;
+      loadEntries();
+    }
 
-    loadStats();
-    loadEntries();
-    setInterval(loadStats, 60_000);
+    async function runSearch() {
+      const raw = document.getElementById('q').value.trim();
+      const cat = document.getElementById('f-category').value;
+      const mac = document.getElementById('f-machine').value;
+      const out = document.getElementById('search-out');
+
+      // Parse #tags from query string
+      const tags = [];
+      const query = raw.replace(/#(\S+)/g, (_, t) => { tags.push(t); return ''; }).trim();
+
+      if (!query && !tags.length && !cat && !mac) { out.innerHTML = ''; document.getElementById('search-page').style.display = 'none'; return; }
+      out.innerHTML = '<p class="muted">Searching…</p>';
+
+      try {
+        const body = { query, limit: page.search.limit, tags };
+        if (cat) body.category   = cat;
+        if (mac) body.machine_id = mac;
+        const d = await apiFetch('/search', { method: 'POST', body: JSON.stringify(body) });
+        page.search.total = d.count;
+        renderTable(d.results, out, document.getElementById('search-page'));
+        renderPagination(document.getElementById('search-page'), 'search', runSearch);
+      } catch (e) {
+        out.innerHTML = `<p class="muted">${esc(e.message)}</p>`;
+      }
+    }
+
+    function clearSearch() {
+      document.getElementById('q').value = '';
+      document.getElementById('f-category').value = '';
+      document.getElementById('f-machine').value  = '';
+      document.getElementById('search-out').innerHTML = '';
+      document.getElementById('search-page').style.display = 'none';
+    }
+
+    // ── Event listeners ───────────────────────────────────────────────────────
+    document.getElementById('q').addEventListener('keydown', e => { if (e.key === 'Enter') runSearch(); });
+    document.getElementById('e-category').addEventListener('change', () => { page.entries.offset = 0; loadEntries(); });
+    document.getElementById('e-machine').addEventListener('change',  () => { page.entries.offset = 0; loadEntries(); });
+
+    // ── Init ──────────────────────────────────────────────────────────────────
+    async function init() {
+      await bootstrap();
+      await Promise.all([checkHealth(), loadStats(), loadFilters()]);
+      loadEntries();
+      setInterval(async () => { await Promise.all([loadStats(), checkHealth()]); }, 60_000);
+    }
+
+    init();
+  })();
   </script>
 </body>
 </html>

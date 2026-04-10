@@ -98,6 +98,34 @@ async def health():
     return {"status": "ok", "version": "2.3.0"}
 
 
+@app.get("/api/token")
+async def get_token():
+    """Return API key for dashboard bootstrap.
+    No X-API-Key required — mTLS client cert authentication is sufficient.
+    Only mTLS-authenticated clients can reach this endpoint via nginx."""
+    return {"key": API_KEY}
+
+
+@app.get("/api/machines", dependencies=[Depends(verify_api_key)])
+async def list_machines(db: AsyncSession = Depends(get_db)):
+    """List all distinct machine IDs for filter dropdowns."""
+    result = await db.execute(text(
+        "SELECT DISTINCT machine_id FROM entries WHERE status='active' ORDER BY machine_id"
+    ))
+    return {"machines": [r[0] for r in result.all()]}
+
+
+@app.get("/api/categories", dependencies=[Depends(verify_api_key)])
+async def list_categories(db: AsyncSession = Depends(get_db)):
+    """List categories with active entry counts for filter dropdowns."""
+    result = await db.execute(text("""
+        SELECT category, COUNT(*) AS count
+        FROM entries WHERE status = 'active'
+        GROUP BY category ORDER BY count DESC
+    """))
+    return {"categories": [{"category": r[0], "count": r[1]} for r in result.all()]}
+
+
 @app.post("/api/sync", dependencies=[Depends(verify_api_key)])
 async def sync_entry(
     entry: EntryIn,

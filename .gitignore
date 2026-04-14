@@ -4,6 +4,9 @@ __pycache__/
 *.pyo
 .env
 certs/
+*.bak
+*.bak[0-9]
+backups/*.dump
 .claude/settings.local.json
 .claude/memory/learnings/
 .claude/memory/archive/

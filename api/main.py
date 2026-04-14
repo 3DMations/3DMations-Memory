@@ -14,6 +14,7 @@ Client identity: X-Client-CN header injected by nginx mTLS layer (not user-setta
 import os
 import logging
 from contextlib import asynccontextmanager
+from datetime import date, datetime
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Header, Depends, Query
@@ -82,6 +83,7 @@ class EntryIn(BaseModel):
     content_hash:            str | None = None
     first_seen:              str | None = None  # ISO date string
     last_seen:               str | None = None  # ISO date string
+    client_type:             str = "claude-code"
 
 
 class SearchRequest(BaseModel):
@@ -136,6 +138,22 @@ async def sync_entry(
     data = scrub_entry(entry.model_dump())
     machine_id = x_client_cn
 
+    # Normalize ISO date strings → datetime.date; default to today if missing.
+    # asyncpg requires a Python date for PG DATE columns; plain strings raise
+    # DataError. Stored columns are NOT NULL so None is not an option.
+    def _to_date(v: Any) -> date:
+        if isinstance(v, date):
+            return v
+        if isinstance(v, str) and v:
+            try:
+                return date.fromisoformat(v)
+            except ValueError:
+                return datetime.fromisoformat(v.replace("Z", "+00:00")).date()
+        return date.today()
+
+    first_seen_d = _to_date(data.get("first_seen"))
+    last_seen_d  = _to_date(data.get("last_seen"))
+
     try:
         result = await db.execute(
             text("""
@@ -146,8 +164,9 @@ async def sync_entry(
                     :what_happened, :correct_solution, :prevention_rule,
                     :context_notes, :related_files, :related_entries,
                     :content_hash,
-                    CAST(:first_seen AS DATE),
-                    CAST(:last_seen  AS DATE)
+                    :first_seen,
+                    :last_seen,
+                    :client_type
                 )
             """),
             {
@@ -171,8 +190,9 @@ async def sync_entry(
                 "related_files":           data.get("related_files", []),
                 "related_entries":         data.get("related_entries", []),
                 "content_hash":            data.get("content_hash"),
-                "first_seen":              data.get("first_seen"),
-                "last_seen":               data.get("last_seen"),
+                "first_seen":              first_seen_d,
+                "last_seen":               last_seen_d,
+                "client_type":             data.get("client_type", "claude-code"),
             },
         )
         entry_id = result.scalar_one()
@@ -277,3 +297,105 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
     row = dict(result.mappings().one())
     row["capacity_pct"] = round(float(row["active"] or 0) / 500 * 100, 1)
     return row
+
+
+@app.get("/api/friction-points", dependencies=[Depends(verify_api_key)])
+async def friction_points(
+    db: AsyncSession = Depends(get_db),
+    limit:       int        = Query(20, ge=1, le=100),
+    client_type: str | None = Query(None),
+):
+    """Known recurring problems that aren't yet reliably solved."""
+    conditions = [
+        "status = 'active'",
+        "recurrence_count >= 3",
+        "confidence_score < 0.5",
+    ]
+    params: dict[str, Any] = {"limit": limit}
+
+    if client_type:
+        conditions.append("client_type = :client_type")
+        params["client_type"] = client_type
+
+    where = " AND ".join(conditions)
+    result = await db.execute(
+        text(f"""
+            SELECT id, machine_id, title, category, recurrence_count, confidence_score,
+                   trigger_context, last_seen
+            FROM entries
+            WHERE {where}
+            ORDER BY recurrence_count DESC, confidence_score ASC
+            LIMIT :limit
+        """),
+        params,
+    )
+    rows = result.mappings().all()
+    return {"results": [dict(r) for r in rows], "count": len(rows)}
+
+
+@app.get("/api/cross-machine-overlap", dependencies=[Depends(verify_api_key)])
+async def cross_machine_overlap(
+    db: AsyncSession = Depends(get_db),
+    limit: int = Query(20, ge=1, le=100),
+):
+    """Identify learnings that appear on multiple machines via content_hash."""
+    result = await db.execute(
+        text("""
+            WITH hash_groups AS (
+                SELECT content_hash,
+                       COUNT(DISTINCT machine_id)    AS machine_count,
+                       array_agg(DISTINCT machine_id) AS machines,
+                       array_agg(id::text)            AS entry_ids,
+                       MIN(title)                     AS sample_title
+                FROM entries
+                WHERE status = 'active' AND content_hash IS NOT NULL
+                GROUP BY content_hash
+                HAVING COUNT(DISTINCT machine_id) >= 2
+            )
+            SELECT content_hash, machine_count, machines, entry_ids, sample_title
+            FROM hash_groups
+            ORDER BY machine_count DESC
+            LIMIT :limit
+        """),
+        {"limit": limit},
+    )
+    rows = result.mappings().all()
+    return {"overlaps": [dict(r) for r in rows], "count": len(rows)}
+
+
+@app.get("/api/trends", dependencies=[Depends(verify_api_key)])
+async def trends(
+    db: AsyncSession = Depends(get_db),
+    category:    str | None = Query(None),
+    days:        int        = Query(30, ge=1, le=365),
+    client_type: str | None = Query(None),
+):
+    """Time-series of new entries per day over the last N days."""
+    conditions = [
+        "status = 'active'",
+        "first_seen >= CURRENT_DATE - make_interval(days => :days)",
+    ]
+    params: dict[str, Any] = {"days": days}
+
+    if category:
+        conditions.append("category = :category")
+        params["category"] = category
+    if client_type:
+        conditions.append("client_type = :client_type")
+        params["client_type"] = client_type
+
+    where = " AND ".join(conditions)
+    result = await db.execute(
+        text(f"""
+            SELECT first_seen AS date, COUNT(*) AS count
+            FROM entries
+            WHERE {where}
+            GROUP BY first_seen
+            ORDER BY first_seen ASC
+        """),
+        params,
+    )
+    rows = result.mappings().all()
+    trends_list = [{"date": r["date"].isoformat() if r["date"] else None, "count": r["count"]} for r in rows]
+    total = sum(r["count"] for r in rows)
+    return {"trends": trends_list, "total": total, "days": days}

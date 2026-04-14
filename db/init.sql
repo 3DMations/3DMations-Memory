@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS entries (
     updated_at              TIMESTAMPTZ  NOT NULL DEFAULT now(),
     status                  TEXT         NOT NULL DEFAULT 'active'
                                          CHECK (status IN ('active', 'archived')),
+    client_type             TEXT         NOT NULL DEFAULT 'claude-code',
     UNIQUE (machine_id, local_entry_id)
 );
 
@@ -60,7 +61,8 @@ CREATE OR REPLACE FUNCTION upsert_entry(
     p_related_entries         TEXT[],
     p_content_hash            TEXT,
     p_first_seen              DATE,
-    p_last_seen               DATE
+    p_last_seen               DATE,
+    p_client_type             TEXT DEFAULT 'claude-code'
 ) RETURNS UUID AS $$
 DECLARE
     v_id UUID;
@@ -70,13 +72,13 @@ BEGIN
         type, severity, recurrence_count, successful_applications, confidence_score,
         tags, trigger_context, root_cause, what_happened, correct_solution,
         prevention_rule, context_notes, related_files, related_entries,
-        content_hash, first_seen, last_seen
+        content_hash, first_seen, last_seen, client_type
     ) VALUES (
         p_machine_id, p_local_entry_id, p_title, p_category, p_subcategory,
         p_type, p_severity, p_recurrence_count, p_successful_applications, p_confidence_score,
         p_tags, p_trigger_context, p_root_cause, p_what_happened, p_correct_solution,
         p_prevention_rule, p_context_notes, p_related_files, p_related_entries,
-        p_content_hash, p_first_seen, p_last_seen
+        p_content_hash, p_first_seen, p_last_seen, p_client_type
     )
     ON CONFLICT (machine_id, local_entry_id) DO UPDATE SET
         -- AUDIT-003: always use server time for updated_at
@@ -89,7 +91,8 @@ BEGIN
         correct_solution        = EXCLUDED.correct_solution,
         prevention_rule         = EXCLUDED.prevention_rule,
         context_notes           = EXCLUDED.context_notes,
-        content_hash            = EXCLUDED.content_hash
+        content_hash            = EXCLUDED.content_hash,
+        client_type             = EXCLUDED.client_type
     RETURNING id INTO v_id;
 
     RETURN v_id;
@@ -104,6 +107,7 @@ CREATE INDEX IF NOT EXISTS idx_entries_status     ON entries(status);
 CREATE INDEX IF NOT EXISTS idx_entries_recurrence ON entries(recurrence_count DESC);
 CREATE INDEX IF NOT EXISTS idx_entries_confidence ON entries(confidence_score DESC);
 CREATE INDEX IF NOT EXISTS idx_entries_last_seen  ON entries(last_seen DESC);
+CREATE INDEX IF NOT EXISTS idx_entries_client_type ON entries(client_type);
 
 -- Full-text search
 CREATE INDEX IF NOT EXISTS idx_entries_fts ON entries USING gin(

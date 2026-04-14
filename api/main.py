@@ -11,8 +11,10 @@ Endpoints:
 Authentication: X-API-Key header
 Client identity: X-Client-CN header injected by nginx mTLS layer (not user-settable)
 """
+import hashlib
 import os
 import logging
+import secrets
 from contextlib import asynccontextmanager
 from datetime import date, datetime
 from typing import Any
@@ -49,15 +51,60 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Claude Memory Hub", version="2.3.0", lifespan=lifespan)
 
 
-# ── Auth ───────────────────────────────────────────────────────────────────────
-async def verify_api_key(x_api_key: str = Header(...)):
-    if x_api_key != API_KEY:
-        raise HTTPException(status_code=401, detail="Invalid API key")
-
-
+# ── Database session dependency ────────────────────────────────────────────────
 async def get_db():
     async with AsyncSessionLocal() as session:
         yield session
+
+
+# ── Auth ───────────────────────────────────────────────────────────────────────
+async def verify_api_key(
+    x_api_key:   str          = Header(...),
+    x_client_cn: str          = Header(default="unknown"),
+    db:          AsyncSession = Depends(get_db),
+):
+    """Authenticate by hashed per-client key with env API_KEY as bootstrap fallback.
+
+    AUDIT-016: looks up SHA-256(x_api_key) in client_keys WHERE revoked_at IS NULL.
+    On match, updates last_used_at. On miss, falls back to env API_KEY so legacy
+    clients keep working during the migration window. Final miss logs to
+    auth_failures and raises 401.
+    """
+    key_hash = hashlib.sha256(x_api_key.encode()).hexdigest()
+
+    result = await db.execute(
+        text(
+            "SELECT id FROM client_keys "
+            "WHERE key_hash = :key_hash AND revoked_at IS NULL"
+        ),
+        {"key_hash": key_hash},
+    )
+    row = result.first()
+    if row is not None:
+        await db.execute(
+            text("UPDATE client_keys SET last_used_at = now() WHERE id = :id"),
+            {"id": row[0]},
+        )
+        await db.commit()
+        return
+
+    # Bootstrap fallback: env API_KEY stays valid until the operator retires it.
+    if x_api_key == API_KEY:
+        return
+
+    # Neither path matched — record the failure and reject.
+    try:
+        await db.execute(
+            text(
+                "INSERT INTO auth_failures (attempted_cn, reason) "
+                "VALUES (:cn, :reason)"
+            ),
+            {"cn": x_client_cn or "unknown", "reason": "invalid key"},
+        )
+        await db.commit()
+    except Exception:
+        await db.rollback()
+    raise HTTPException(status_code=401, detail="Invalid API key")
 
 
 # ── Request / Response Models ──────────────────────────────────────────────────
@@ -399,3 +446,93 @@ async def trends(
     trends_list = [{"date": r["date"].isoformat() if r["date"] else None, "count": r["count"]} for r in rows]
     total = sum(r["count"] for r in rows)
     return {"trends": trends_list, "total": total, "days": days}
+
+
+# ── Admin: per-client API keys (AUDIT-016) ─────────────────────────────────────
+class ClientKeyCreate(BaseModel):
+    client_cn:   str
+    description: str | None = None
+
+
+@app.post("/api/admin/keys", dependencies=[Depends(verify_api_key)])
+async def create_client_key(
+    body: ClientKeyCreate,
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a per-client API key and return the plaintext ONCE.
+
+    WARNING: the plaintext key is returned exactly once — it is never recoverable
+    after this response. Only the SHA-256 hash is stored server-side.
+    """
+    plaintext = secrets.token_urlsafe(32)
+    key_hash  = hashlib.sha256(plaintext.encode()).hexdigest()
+    try:
+        result = await db.execute(
+            text(
+                "INSERT INTO client_keys (key_hash, client_cn, description) "
+                "VALUES (:key_hash, :client_cn, :description) "
+                "RETURNING id, client_cn"
+            ),
+            {
+                "key_hash":    key_hash,
+                "client_cn":   body.client_cn,
+                "description": body.description,
+            },
+        )
+        row = result.mappings().one()
+        await db.commit()
+    except Exception as exc:
+        await db.rollback()
+        logger.error("create_client_key failed for %s: %s", body.client_cn, exc)
+        raise HTTPException(status_code=500, detail="Could not create key") from exc
+    return {"id": str(row["id"]), "client_cn": row["client_cn"], "key": plaintext}
+
+
+@app.get("/api/admin/keys", dependencies=[Depends(verify_api_key)])
+async def list_client_keys(db: AsyncSession = Depends(get_db)):
+    """List per-client API key metadata. Hashes are never exposed."""
+    result = await db.execute(
+        text(
+            "SELECT id, client_cn, description, created_at, revoked_at, last_used_at "
+            "FROM client_keys ORDER BY created_at DESC"
+        )
+    )
+    rows = result.mappings().all()
+    keys = [
+        {
+            "id":           str(r["id"]),
+            "client_cn":    r["client_cn"],
+            "description":  r["description"],
+            "created_at":   r["created_at"].isoformat() if r["created_at"] else None,
+            "revoked_at":   r["revoked_at"].isoformat() if r["revoked_at"] else None,
+            "last_used_at": r["last_used_at"].isoformat() if r["last_used_at"] else None,
+        }
+        for r in rows
+    ]
+    return {"keys": keys, "count": len(keys)}
+
+
+@app.post("/api/admin/keys/{key_id}/revoke", dependencies=[Depends(verify_api_key)])
+async def revoke_client_key(key_id: str, db: AsyncSession = Depends(get_db)):
+    """Revoke a per-client key by setting revoked_at = now(). Additive, not destructive."""
+    try:
+        result = await db.execute(
+            text(
+                "UPDATE client_keys SET revoked_at = now() "
+                "WHERE id = :id AND revoked_at IS NULL "
+                "RETURNING id, revoked_at"
+            ),
+            {"id": key_id},
+        )
+        row = result.mappings().first()
+        await db.commit()
+    except Exception as exc:
+        await db.rollback()
+        logger.error("revoke_client_key failed for %s: %s", key_id, exc)
+        raise HTTPException(status_code=500, detail="Could not revoke key") from exc
+    if row is None:
+        raise HTTPException(status_code=404, detail="Key not found or already revoked")
+    return {
+        "id":         str(row["id"]),
+        "revoked_at": row["revoked_at"].isoformat() if row["revoked_at"] else None,
+    }

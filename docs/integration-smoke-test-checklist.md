@@ -39,6 +39,7 @@ as the capstone.
 | Pass | Date | P0 | P1 | P2 | P3 | Status | Snapshot file |
 |------|------|----|----|----|----|--------|---------------|
 | 1    | 2026-04-13 | 0 | 2 | 0 | 3 | P1s fixed, pass 2 required for clean-exit | — |
+| 2    | 2026-04-13 | 0 | 0 | 0 | 0 | CLEAN — baseline established | — |
 
 **Pass 1 notes:**
 - Sections 1–2 run by sub-agent A-Alpha (93 tool calls, clean signal). Sections 3–5 run in main context because sub-agent A-Beta was denied `docker exec` / `curl` by sandbox — not a hub issue, a session-level permission constraint. No issues fabricated.
@@ -98,7 +99,7 @@ Run before every pass. None of these should be skipped even if "nothing changed.
 - [ ] API → DB name resolution: `docker exec memory-api getent hosts db` returns an IP
 - [ ] Public endpoint reachable from host without cert: `curl -k https://aiwork-Legion.local:8443/` → 400 (mTLS required), NOT timeout or connection refused
 - [ ] Public endpoint with mTLS: `curl --cert certs/clients/aiwork-host/client.crt --key certs/clients/aiwork-host/client.key --cacert certs/ca.crt -H "X-API-Key: $API_KEY" https://aiwork-Legion.local:8443/api/health` → 200 with version 2.3.0
-- [ ] Wrong API key with valid mTLS: same curl with `-H "X-API-Key: WRONG"` → 401
+- [ ] Wrong API key with valid mTLS against an authenticated endpoint (e.g. `/api/stats`): same curl with `-H "X-API-Key: WRONG"` → 401. Note: `/api/health` is intentionally unauthenticated (liveness probe) — do NOT use it for this check.
 - [ ] Nginx injects `X-Client-CN`: after a sync call, grep memory-api logs for `machine=` → value reflects the cert CN (not "unknown")
 - [ ] WebSocket: N/A — HTTP only, no upgrade
 - [ ] Client circuit breaker: `[NOT BUILT in hub — lives in client-side hub-sync.md; see Section 5 deferred items]`
@@ -111,7 +112,7 @@ Assumes a fresh DB. If running against a populated DB, adapt counts.
 
 - [ ] `docker exec memory-db psql -U claude -d claude_memory -c "SELECT COUNT(*) FROM entries;"` → 0 on fresh volume
 - [ ] `upsert_entry()` function present: `\df upsert_entry` shows the signature from `db/init.sql`
-- [ ] All indexes present: `SELECT indexname FROM pg_indexes WHERE tablename='entries';` contains `idx_entries_machine`, `idx_entries_category`, `idx_entries_tags`, `idx_entries_status`, `idx_entries_recurrence`, `idx_entries_confidence`, `idx_entries_last_seen`, `idx_entries_fts`
+- [ ] All indexes present: `SELECT indexname FROM pg_indexes WHERE tablename='entries';` contains `idx_entries_machine`, `idx_entries_category`, `idx_entries_tags`, `idx_entries_status`, `idx_entries_recurrence`, `idx_entries_confidence`, `idx_entries_last_seen`, `idx_entries_fts`, `idx_entries_client_type`
 - [ ] CHECK on `confidence_score`: manual insert with `confidence_score=1.5` is rejected
 - [ ] CHECK on `status`: manual insert with `status='foo'` is rejected
 - [ ] `UNIQUE (machine_id, local_entry_id)`: second insert with same pair upserts (no duplicate row, no error)

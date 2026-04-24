@@ -1,0 +1,54 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hub-app
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    ports:
+      - "127.0.0.1:${APP_PORT}:3000"
+    volumes:
+      - ./app:/app
+      - hub-node-modules:/app/node_modules
+      - hub-next-cache:/app/.next
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - hub-internal
+      - jarvis-internal
+
+  db:
+    image: postgres:18-alpine
+    container_name: hub-db
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      # PG18+ uses major-version subdirs under /var/lib/postgresql.
+      # Mounting /data is rejected as "unused" — mount the parent instead.
+      - hub-db-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - hub-internal
+
+volumes:
+  hub-db-data:
+  hub-node-modules:
+  hub-next-cache:
+
+networks:
+  hub-internal:
+    driver: bridge
+  jarvis-internal:
+    external: true

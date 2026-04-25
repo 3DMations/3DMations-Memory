@@ -1,6 +1,6 @@
 # APP_MAP — 3DMations Memory Hub
 
-**Last updated:** 2026-04-25 (Phase 1.6 sealed — session delete + orphan view)
+**Last updated:** 2026-04-25 (Phase 2 sealed — global search + session compare)
 **Stack version:** v4.3
 **Authority:** This file is the single source of truth for every wire/connection in the running hub. Update it at the seal of each phase.
 
@@ -199,6 +199,8 @@ Extensions + GIN indexes (out of drizzle-kit's scope) are applied via `app/drizz
 | DELETE | `/api/sessions/:id`               | admin  | `X-Admin-Token: $AUTH_SECRET`; default sets memories' `session_id=NULL`; `?with_memories=true` cascades. 401 / 404 paths covered. |
 | POST   | `/api/memories`                   | bearer | Create or upsert (on `local_entry_id`); token must match `session_id` in body |
 | GET    | `/api/memories?q=&session=&limit=`| bearer | List or trigram-rank by `q` (`title %% q OR content %% q OR ILIKE`); session filter optional |
+| GET    | `/api/memories/search?q=&limit=`  | bearer | Global trigram search across all sessions; results carry `sessionName` for attribution |
+| GET    | `/api/memories/compare?a=&b=&threshold=` | bearer | Three-bucket compare between two sessions: `in_a_only`, `in_both` (similarity > threshold, default 0.4), `in_b_only` |
 | GET    | `/api/ai/health`                  | none   | Ollama reachability behind `AI_FEATURES_ENABLED` flag — 503 when off, 200 with model list when on |
 
 Auth: bearer token compared via SHA-256 `token_hash` with constant-time equality. Successful auth bumps `sessions.last_seen`. POST `/api/memories` requires the token's session to equal `body.session_id` (403 otherwise).
@@ -207,10 +209,12 @@ Auth: bearer token compared via SHA-256 `token_hash` with constant-time equality
 
 | Route        | File                          | Component | Data |
 |--------------|-------------------------------|-----------|------|
-| `/`          | `app/app/page.tsx`            | RSC + client trash button | sessions list with memory counts; orphan-count link (Drizzle direct read) |
+| `/`          | `app/app/page.tsx`            | RSC + client trash button | sessions list with memory counts; nav to Search / Compare / New; orphan-count link |
 | `/s/[id]`    | `app/app/s/[id]/page.tsx`     | RSC       | session detail; `?q=` switches to trigram ranking |
 | `/new`       | `app/app/new/page.tsx`        | client    | POST → `/api/sessions`, displays bearer token once |
 | `/orphaned`  | `app/app/orphaned/page.tsx`   | RSC       | memories with `session_id IS NULL` (after keep-memories deletes) |
+| `/search`    | `app/app/search/page.tsx` + `SearchInput.tsx` | RSC + debounced client input | global trigram + ILIKE search across all sessions; result carries session badge or "orphaned" pill |
+| `/compare`   | `app/app/compare/page.tsx`    | RSC       | two-session picker form + threshold slider; renders `in_A_only` / `in_both` / `in_B_only` columns |
 | (component)  | `app/app/_components/SessionDeleteButton.tsx` | client | trash icon → modal with two explicit buttons (keep-memories vs cascade); admin token cached in `sessionStorage` per tab |
 
 Next.js 16 dynamic-route convention: `params` and `searchParams` are awaited Promises (used in `/s/[id]`).
@@ -228,8 +232,10 @@ Schema for Phase 0 placeholder: `app/app/page.tsx.bak` (preserved per Destructiv
 | `app/__tests__/sessions-delete.test.ts`  | 5 | DELETE 401 (no/wrong header), 404 (unknown id), 200 keep-memories (FK SET NULL verified), 200 with_memories (cascade verified) |
 | `app/__tests__/memories.test.ts`         | 7 | POST 401 (no bearer), 401 (bad bearer), 403 (mismatched session), 201 + uuidv7, UPSERT idempotency, GET list scoped, GET trigram-ranked |
 | `app/__tests__/orphaned.test.ts`         | 1 | After keep-memories delete, `/orphaned` SSR includes the surviving title |
+| `app/__tests__/search.test.ts`           | 3 | 401 no bearer; 400 missing/empty `q`; 200 returns multi-session hits with `sessionName` attribution |
+| `app/__tests__/compare.test.ts`          | 3 | 401 no bearer; 200 returns three-bucket structure with overlap; threshold parameter respected (`?threshold=0.1` ⊇ `?threshold=0.9`) |
 | `app/__tests__/ollama.test.ts`           | 1 | `ollamaHealth()` reaches `jarvis-ollama` and returns the configured model in tag list |
-| **total** | **20** | run via `make test` or `docker compose exec app pnpm test` |
+| **total** | **26** | run via `make test` or `docker compose exec app pnpm test` |
 
 Test base URL: `http://localhost:3000` (defaults to in-container; override with `HUB_BASE_URL`). Cleanup: `afterAll` deletes test sessions by name prefix; CASCADE drops their memories.
 
@@ -284,12 +290,42 @@ Flag-flip seal verified 2026-04-25:
 ✓ vitest run → 20 passed (6 suites)
 ```
 
+## Phase 2 — Useful (sealed 2026-04-25)
+
+**Endpoints + pages built:** `/api/memories/search`, `/api/memories/compare`, `/search`, `/compare`. Auth model on the new API routes is **bearer** (any valid session token), matching `/api/memories`. Dashboard pages bypass the API and read Drizzle directly — same SSR pattern as `/`, `/s/[id]`, `/orphaned`.
+
+**Compare query design (per plan):**
+- `in_both` — pairs `(a_id, b_id, sim)` joining `memories a, memories b WHERE similarity(a.title, b.title) > $threshold`. Returns up to 100 ranked pairs.
+- `in_a_only` — A's memories with NO B-side match above threshold (NOT EXISTS subquery)
+- `in_b_only` — symmetric
+- Default threshold 0.4. Tunable via `?threshold=` (clamped to (0, 1)).
+
+**Performance vs seal target (< 200ms for < 1000 memories):**
+With 20 memories live across 2 sessions, SSR timings (warm):
+```
+/                                       44 ms
+/search?q=docker                        27 ms
+/search?q=trigram                       22 ms
+/compare?a=…&b=…  (3 buckets, joins)    30 ms
+```
+GIN trigram indexes do the heavy lifting; large headroom against the seal.
+
+**Wait-and-watch (1 week per plan):** is `compare` surfacing real insights or noise? Tune `threshold` if needed. Default 0.4 was the plan's; revisit empirically.
+
+```
+✓ /api/memories/search global hits across sessions, with sessionName join
+✓ /api/memories/compare three buckets, threshold tunable, 401 / 400 / 404 correct
+✓ /search debounced client input updates URL, RSC re-renders results
+✓ /compare two pickers + threshold form, three columns rendered
+✓ Performance: every route < 50ms; seal is < 200ms
+✓ vitest run → 26 passed (8 suites)
+```
+
 ## Out of scope (per plan)
 
 | Phase | Adds | Touches APP_MAP |
 |-------|------|-----------------|
-| 2     | Search, similarity, compare | `/api/memories/search`, `/api/memories/compare`; `/search`, `/compare` pages |
-| 3     | HTTPS termination + admin-token / signing-secret split | Adds `hub-tls` container at :8443; cron `pg_dump`; client-side scrubber; new `ADMIN_TOKEN` env distinct from `AUTH_SECRET` |
+| 3     | HTTPS termination + admin-token / signing-secret split | Adds `hub-tls` container at :8443; cron `pg_dump`; client-side scrubber; new `ADMIN_TOKEN` env distinct from `AUTH_SECRET`; `content_hash` populated; `/api/memories/verify` |
 | 4-5   | Self-improvement loops | In-app only, no new containers; flips `AI_FEATURES_ENABLED=true` for real use |
 
 This file MUST be updated at the seal of each phase.

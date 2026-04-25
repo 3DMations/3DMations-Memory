@@ -38,12 +38,26 @@ export default async function SessionsPage() {
             {rows.length} session{rows.length === 1 ? "" : "s"}
           </p>
         </div>
-        <Link
-          href="/new"
-          className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
-        >
-          New session
-        </Link>
+        <nav className="flex items-center gap-2 text-sm">
+          <Link
+            href="/search"
+            className="rounded-md border border-zinc-300 px-3 py-2 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
+          >
+            Search
+          </Link>
+          <Link
+            href="/compare"
+            className="rounded-md border border-zinc-300 px-3 py-2 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
+          >
+            Compare
+          </Link>
+          <Link
+            href="/new"
+            className="rounded-md bg-black px-3 py-2 font-medium text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
+          >
+            New session
+          </Link>
+        </nav>
       </header>
 
       {rows.length === 0 ? (

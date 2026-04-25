@@ -1,0 +1,16 @@
+**/node_modules
+**/.next
+**/.turbo
+**/.pnpm-store
+**/.git
+**/.env
+**/.env.local
+**/coverage
+**/*.log
+**/*.bak
+.archive/
+.claude/
+docs/
+*.md
+!app/AGENTS.md
+!app/CLAUDE.md

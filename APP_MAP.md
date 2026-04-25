@@ -1,6 +1,6 @@
 # APP_MAP — 3DMations Memory Hub
 
-**Last updated:** 2026-04-24 (Phase 0 seal)
+**Last updated:** 2026-04-25 (Phase 1 — MVP routes + dashboard live, tests pending)
 **Stack version:** v4.3
 **Authority:** This file is the single source of truth for every wire/connection in the running hub. Update it at the seal of each phase.
 
@@ -169,21 +169,62 @@ These will start carrying traffic in Phase 1 and Phase 1.5 respectively.
 
 ---
 
-## Schema (Phase 0)
+## Schema (Phase 1 — live)
 
-`memories` database is empty. No tables, no extensions enabled. Phase 1 introduces:
-- `pg_trgm` extension (trigram GIN search)
-- `sessions` table
-- `memories` table
-- Drizzle migrations under `app/drizzle/`
+`pg_trgm 1.6` extension enabled. PG18 native `uuidv7()` available — verified.
+
+| Table            | Columns / notes |
+|------------------|-----------------|
+| `sessions`       | `id` (12-char nanoid PK), `name`, `token_hash` (sha256 hex), `created_at`, `last_seen` |
+| `memories`       | `id` (uuid PK, `default uuidv7()`), `session_id` FK→sessions ON DELETE CASCADE, `local_entry_id`, `title`, `content`, `category`, `tags TEXT[]`, `confidence REAL`, `recurrence INT`, `content_hash`, `metadata JSONB`, `created_at`, `updated_at` |
+| `schema_version` | `version` (PK), `description`, `applied_at` — currently `(1, 'initial schema — PG18 with uuidv7')` |
+
+Indexes on `memories`:
+- `memories_pkey` (uuid)
+- `idx_memories_session_local_id` UNIQUE partial — `(session_id, local_entry_id) WHERE local_entry_id IS NOT NULL` (drives upsert ON CONFLICT)
+- `idx_memories_title_trgm` GIN — `(title gin_trgm_ops)`
+- `idx_memories_content_trgm` GIN — `(content gin_trgm_ops)`
+- `idx_memories_tags` GIN — `(tags)`
+
+Drizzle source: `app/db/schema.ts`. Sync via `pnpm drizzle-kit push` (Phase 1) — switch to `generate` + `migrate` in Phase 3.
+Extensions + GIN indexes (out of drizzle-kit's scope) are applied via `app/drizzle/post-push-init.sql`.
+
+## API routes (Phase 1 — live)
+
+| Method | Path                              | Auth   | Purpose |
+|--------|-----------------------------------|--------|---------|
+| GET    | `/api/health`                     | none   | DB ping + schema version |
+| POST   | `/api/sessions`                   | none   | Create session, return `{id, token}` once |
+| GET    | `/api/sessions`                   | none   | List sessions (no tokens, no hashes) |
+| POST   | `/api/memories`                   | bearer | Create or upsert (on `local_entry_id`); token must match `session_id` in body |
+| GET    | `/api/memories?q=&session=&limit=`| bearer | List or trigram-rank by `q` (`title %% q OR content %% q`); session filter optional |
+
+Auth: bearer token compared via SHA-256 `token_hash` with constant-time equality. Successful auth bumps `sessions.last_seen`. POST `/api/memories` requires the token's session to equal `body.session_id` (403 otherwise).
+
+## Frontend (Phase 1 — live)
+
+| Route        | File                          | Component | Data |
+|--------------|-------------------------------|-----------|------|
+| `/`          | `app/app/page.tsx`            | RSC       | sessions list with memory counts (Drizzle direct read) |
+| `/s/[id]`    | `app/app/s/[id]/page.tsx`     | RSC       | session detail; `?q=` switches to trigram ranking |
+| `/new`       | `app/app/new/page.tsx`        | client    | POST → `/api/sessions`, displays bearer token once |
+
+Next.js 16 dynamic-route convention: `params` and `searchParams` are awaited Promises (used in `/s/[id]`).
+
+Schema for Phase 0 placeholder: `app/app/page.tsx.bak` (preserved per Destructive Action Guard, gitignored).
 
 ---
+
+## Phase 1 status
+
+Done: deps installed, schema pushed, extensions applied, all 5 API routes verified by curl, all 3 dashboard pages return HTTP 200 against real data. UPSERT idempotency on `local_entry_id` verified end-to-end. Trigram ranking verified.
+
+Pending before Phase 1 seal: vitest config + 12 tests (4 session, 6 memory + upsert, 2 auth).
 
 ## Out of scope tonight (per plan)
 
 | Phase | Adds | Touches APP_MAP |
 |-------|------|-----------------|
-| 1     | Drizzle schema, `/api/sessions`, `/api/memories`, `/api/health`, dashboard | New routes, new tables, app↔db live |
 | 1.5   | `lib/ollama.ts`, `/api/ai/health` | First app↔ollama traffic; flips `AI_FEATURES_ENABLED=true` |
 | 2     | Embeddings, semantic search | Adds Ollama embed calls, vector indexes |
 | 3     | HTTPS termination | Adds `hub-tls` container at :8443 |

@@ -1,14 +1,76 @@
-export default function Home() {
+import Link from "next/link";
+import { desc, sql } from "drizzle-orm";
+import { db } from "@/db";
+import { memories, sessions } from "@/db/schema";
+
+export const dynamic = "force-dynamic";
+
+export default async function SessionsPage() {
+  const rows = await db
+    .select({
+      id: sessions.id,
+      name: sessions.name,
+      createdAt: sessions.createdAt,
+      lastSeen: sessions.lastSeen,
+      memoryCount: sql<number>`COUNT(${memories.id})::int`,
+    })
+    .from(sessions)
+    .leftJoin(memories, sql`${memories.sessionId} = ${sessions.id}`)
+    .groupBy(sessions.id)
+    .orderBy(desc(sessions.lastSeen));
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <div className="flex flex-col items-center gap-4 text-center">
-        <h1 className="text-3xl font-semibold tracking-tight text-black dark:text-zinc-50">
-          Hub — Phase 0
-        </h1>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          Deployment pipeline online.
-        </p>
-      </div>
+    <main className="mx-auto max-w-3xl px-6 py-12 font-sans">
+      <header className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Memory Hub
+          </h1>
+          <p className="text-sm text-zinc-500">
+            {rows.length} session{rows.length === 1 ? "" : "s"}
+          </p>
+        </div>
+        <Link
+          href="/new"
+          className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
+        >
+          New session
+        </Link>
+      </header>
+
+      {rows.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-zinc-300 p-12 text-center text-sm text-zinc-500 dark:border-zinc-700">
+          No sessions yet. Create one to start writing memories.
+        </div>
+      ) : (
+        <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
+          {rows.map((s) => (
+            <li key={s.id} className="py-4">
+              <Link
+                href={`/s/${s.id}`}
+                className="block hover:bg-zinc-50 dark:hover:bg-zinc-900 rounded-md -mx-2 px-2 py-1"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">{s.name}</span>
+                  <span className="text-xs text-zinc-500">
+                    {s.memoryCount} memor{s.memoryCount === 1 ? "y" : "ies"}
+                  </span>
+                </div>
+                <div className="mt-1 flex items-center gap-3 text-xs text-zinc-500">
+                  <code className="font-mono">{s.id}</code>
+                  <span>·</span>
+                  <span>last seen {formatDate(s.lastSeen)}</span>
+                </div>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
     </main>
   );
+}
+
+function formatDate(d: Date | null): string {
+  if (!d) return "never";
+  return new Date(d).toISOString().replace("T", " ").slice(0, 16) + " UTC";
 }

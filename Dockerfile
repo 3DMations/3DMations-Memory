@@ -8,6 +8,12 @@ RUN apk add --no-cache libc6-compat \
 
 WORKDIR /app
 
+# Pin pnpm store inside the named-volume mount point so build-time and
+# exec-time pnpm agree on store location (avoids ERR_PNPM_UNEXPECTED_STORE
+# when running `pnpm add` later).
+ENV PNPM_STORE_DIR=/app/.pnpm-store
+RUN pnpm config set store-dir /app/.pnpm-store --global
+
 COPY app/package.json app/pnpm-lock.yaml app/pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 

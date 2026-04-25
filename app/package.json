@@ -8,7 +8,10 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:bdd": "NODE_OPTIONS=\"--import tsx\" cucumber-js"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",
@@ -20,6 +23,8 @@
     "react-dom": "19.2.4"
   },
   "devDependencies": {
+    "@cucumber/cucumber": "^12.8.1",
+    "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",
@@ -33,6 +38,7 @@
     "eslint-config-next": "16.2.4",
     "jsdom": "^29.0.2",
     "tailwindcss": "^4",
+    "tsx": "^4.21.0",
     "typescript": "^5",
     "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^4.1.5"

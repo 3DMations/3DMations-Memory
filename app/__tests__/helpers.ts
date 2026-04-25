@@ -18,5 +18,24 @@ export async function createSession(name: string): Promise<{
 }
 
 export async function cleanupTestSessions(prefix: string): Promise<void> {
+  // Cascade delete: nuke memories first (FK is now SET NULL, so direct cascade
+  // doesn't drop them), then sessions. Also cleans orphans this prefix produced.
+  await db.execute(
+    sql`DELETE FROM memories WHERE session_id IN (SELECT id FROM sessions WHERE name LIKE ${prefix + "%"})`
+  );
   await db.execute(sql`DELETE FROM sessions WHERE name LIKE ${prefix + "%"}`);
+}
+
+export const ADMIN_TOKEN = process.env.AUTH_SECRET ?? "";
+
+export async function deleteSession(
+  id: string,
+  opts: { adminToken?: string; withMemories?: boolean } = {}
+): Promise<Response> {
+  const url = new URL(`${BASE_URL}/api/sessions/${id}`);
+  if (opts.withMemories) url.searchParams.set("with_memories", "true");
+  return fetch(url, {
+    method: "DELETE",
+    headers: opts.adminToken ? { "X-Admin-Token": opts.adminToken } : {},
+  });
 }

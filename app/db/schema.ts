@@ -23,7 +23,7 @@ export const memories = pgTable(
   {
     id: uuid("id").primaryKey().default(sql`uuidv7()`),
     sessionId: text("session_id").references(() => sessions.id, {
-      onDelete: "cascade",
+      onDelete: "set null",
     }),
     localEntryId: text("local_entry_id"),
     title: text("title").notNull(),

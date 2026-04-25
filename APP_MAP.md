@@ -1,6 +1,6 @@
 # APP_MAP — 3DMations Memory Hub
 
-**Last updated:** 2026-04-25 (Phase 1 sealed)
+**Last updated:** 2026-04-25 (Phase 1.5 sealed — Ollama plumbing wired)
 **Stack version:** v4.3
 **Authority:** This file is the single source of truth for every wire/connection in the running hub. Update it at the seal of each phase.
 
@@ -197,7 +197,8 @@ Extensions + GIN indexes (out of drizzle-kit's scope) are applied via `app/drizz
 | POST   | `/api/sessions`                   | none   | Create session, return `{id, token}` once |
 | GET    | `/api/sessions`                   | none   | List sessions (no tokens, no hashes) |
 | POST   | `/api/memories`                   | bearer | Create or upsert (on `local_entry_id`); token must match `session_id` in body |
-| GET    | `/api/memories?q=&session=&limit=`| bearer | List or trigram-rank by `q` (`title %% q OR content %% q`); session filter optional |
+| GET    | `/api/memories?q=&session=&limit=`| bearer | List or trigram-rank by `q` (`title %% q OR content %% q OR ILIKE`); session filter optional |
+| GET    | `/api/ai/health`                  | none   | Ollama reachability behind `AI_FEATURES_ENABLED` flag — 503 when off, 200 with model list when on |
 
 Auth: bearer token compared via SHA-256 `token_hash` with constant-time equality. Successful auth bumps `sessions.last_seen`. POST `/api/memories` requires the token's session to equal `body.session_id` (403 otherwise).
 
@@ -222,7 +223,8 @@ Schema for Phase 0 placeholder: `app/app/page.tsx.bak` (preserved per Destructiv
 | `app/__tests__/auth.test.ts`     | 2 | sha256 stability, safeEqualHex incl. malformed-hex rejection |
 | `app/__tests__/sessions.test.ts` | 4 | POST 201, POST 400 (missing/empty name), GET list (no token leakage) |
 | `app/__tests__/memories.test.ts` | 7 | POST 401 (no bearer), 401 (bad bearer), 403 (mismatched session), 201 + uuidv7, UPSERT idempotency, GET list scoped, GET trigram-ranked |
-| **total** | **13** | run via `make test` or `docker compose exec app pnpm test` |
+| `app/__tests__/ollama.test.ts`   | 1 | `ollamaHealth()` reaches `jarvis-ollama` and returns the configured model in tag list |
+| **total** | **14** | run via `make test` or `docker compose exec app pnpm test` |
 
 Test base URL: `http://localhost:3000` (defaults to in-container; override with `HUB_BASE_URL`). Cleanup: `afterAll` deletes test sessions by name prefix; CASCADE drops their memories.
 
@@ -237,14 +239,33 @@ Test base URL: `http://localhost:3000` (defaults to in-container; override with 
 ✓ vitest run → 13 passed (3 suites)
 ```
 
-## Out of scope tonight (per plan)
+## Phase 1.5 — Ollama plumbing (sealed 2026-04-25)
+
+`hub-app` reaches `jarvis-ollama` over the shared `jarvis-internal` Docker network. The wire was already verified during Phase 0; Phase 1.5 adds the typed client and a flag-gated health endpoint.
+
+| File | Purpose |
+|------|---------|
+| `app/lib/ollama.ts` | OpenAI SDK pointed at `${OLLAMA_URL}/v1/` (`apiKey:"ollama"` placeholder, ignored by Ollama). `ollamaHealth()` queries Ollama's native `/api/tags` (model list — not exposed via `/v1`). |
+| `app/app/api/ai/health/route.ts` | `GET` — returns 503 `{ok:false, reason:"AI features disabled"}` when `AI_FEATURES_ENABLED!=="true"`; otherwise returns 200 `{ok:true, model, available:[…]}` from `ollamaHealth()`. |
+| `app/__tests__/ollama.test.ts` | Integration: confirms model list contains `OLLAMA_MODEL`. |
+
+Feature flag default: **off** (`.env` ships with `AI_FEATURES_ENABLED=false`). Flip on only when a Phase 5+ feature needs it.
+
+Flag-flip seal verified 2026-04-25:
+```
+✓ flag=false → /api/ai/health → 503 "AI features disabled"
+✓ flag=true  → /api/ai/health → 200 {"model":"qwen3.6:35b","available":["qwen3.6:35b","qwen3:32b"]}
+✓ flag flipped back to false; final 503; .env backups archived to .archive/env-snapshots/
+✓ vitest run → 14 passed (4 suites)
+```
+
+## Out of scope (per plan)
 
 | Phase | Adds | Touches APP_MAP |
 |-------|------|-----------------|
-| 1.5   | `lib/ollama.ts`, `/api/ai/health` | First app↔ollama traffic; flips `AI_FEATURES_ENABLED=true` |
-| 2     | Embeddings, semantic search | Adds Ollama embed calls, vector indexes |
-| 3     | HTTPS termination | Adds `hub-tls` container at :8443 |
-| 4-5   | Self-improvement loops | In-app only, no new containers |
+| 2     | Search, similarity, compare | `/api/memories/search`, `/api/memories/compare`; `/search`, `/compare` pages |
+| 3     | HTTPS termination | Adds `hub-tls` container at :8443; cron `pg_dump`; client-side scrubber |
+| 4-5   | Self-improvement loops | In-app only, no new containers; flips `AI_FEATURES_ENABLED=true` for real use |
 
 This file MUST be updated at the seal of each phase.
 

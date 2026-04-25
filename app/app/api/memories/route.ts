@@ -154,8 +154,11 @@ export async function GET(request: Request) {
       .from(memories)
       .where(
         filters
-          ? and(filters, sql`(${memories.title} % ${term} OR ${memories.content} % ${term})`)
-          : sql`(${memories.title} % ${term} OR ${memories.content} % ${term})`
+          ? and(
+              filters,
+              sql`(${memories.title} % ${term} OR ${memories.content} % ${term} OR ${memories.title} ILIKE ${"%" + term + "%"} OR ${memories.content} ILIKE ${"%" + term + "%"})`
+            )
+          : sql`(${memories.title} % ${term} OR ${memories.content} % ${term} OR ${memories.title} ILIKE ${"%" + term + "%"} OR ${memories.content} ILIKE ${"%" + term + "%"})`
       )
       .orderBy(desc(score))
       .limit(limit);

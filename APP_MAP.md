@@ -1,6 +1,6 @@
 # APP_MAP — 3DMations Memory Hub
 
-**Last updated:** 2026-04-25 (Phase 1 — MVP routes + dashboard live, tests pending)
+**Last updated:** 2026-04-25 (Phase 1 sealed)
 **Stack version:** v4.3
 **Authority:** This file is the single source of truth for every wire/connection in the running hub. Update it at the seal of each phase.
 
@@ -215,11 +215,27 @@ Schema for Phase 0 placeholder: `app/app/page.tsx.bak` (preserved per Destructiv
 
 ---
 
-## Phase 1 status
+## Tests (Phase 1 — green)
 
-Done: deps installed, schema pushed, extensions applied, all 5 API routes verified by curl, all 3 dashboard pages return HTTP 200 against real data. UPSERT idempotency on `local_entry_id` verified end-to-end. Trigram ranking verified.
+| Suite | Tests | Coverage |
+|-------|-------|----------|
+| `app/__tests__/auth.test.ts`     | 2 | sha256 stability, safeEqualHex incl. malformed-hex rejection |
+| `app/__tests__/sessions.test.ts` | 4 | POST 201, POST 400 (missing/empty name), GET list (no token leakage) |
+| `app/__tests__/memories.test.ts` | 7 | POST 401 (no bearer), 401 (bad bearer), 403 (mismatched session), 201 + uuidv7, UPSERT idempotency, GET list scoped, GET trigram-ranked |
+| **total** | **13** | run via `make test` or `docker compose exec app pnpm test` |
 
-Pending before Phase 1 seal: vitest config + 12 tests (4 session, 6 memory + upsert, 2 auth).
+Test base URL: `http://localhost:3000` (defaults to in-container; override with `HUB_BASE_URL`). Cleanup: `afterAll` deletes test sessions by name prefix; CASCADE drops their memories.
+
+## Phase 1 seal — verified 2026-04-25
+
+```
+✓ PG 18.3 reported by SELECT version()
+✓ uuidv7() native — sample 019dc20f-b561-7482-b7ca-013063794a27
+✓ POST /api/sessions → 201 {id, token, ...}
+✓ POST /api/memories with bearer → 201 with uuidv7 memory
+✓ GET /api/memories?session=... → array
+✓ vitest run → 13 passed (3 suites)
+```
 
 ## Out of scope tonight (per plan)
 

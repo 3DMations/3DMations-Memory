@@ -11,6 +11,7 @@ certs/
 *.bak[0-9]
 backups/*.dump
 .claude/settings.local.json
+.claude/local/
 .claude/memory/learnings/
 .claude/memory/archive/
 .claude/memory/traces/

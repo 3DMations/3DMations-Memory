@@ -1,9 +1,59 @@
 services:
+  ts-hub:
+    image: tailscale/tailscale:latest
+    container_name: hub-ts
+    hostname: hub
+    restart: unless-stopped
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY}
+      TS_EXTRA_ARGS: --advertise-tags=tag:hub
+      TS_SERVE_CONFIG: /config/serve.json
+      TS_STATE_DIR: /var/lib/tailscale
+    volumes:
+      - hub-ts-state:/var/lib/tailscale
+      - ./tailscale/serve.json:/config/serve.json:ro
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - net_admin
+      - sys_module
+    networks:
+      - hub-internal
+      - jarvis-internal
+
   app:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: hub-app
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    # Tailnet is the only ingress. App's HTTP socket is reachable inside ts-hub's
+    # netns at 127.0.0.1:3000 — that's what serve.json proxies to.
+    # NO `ports:` and NO `networks:` — both inherited from ts-hub.
+    network_mode: service:ts-hub
+    volumes:
+      - ./app:/app
+      - hub-node-modules:/app/node_modules
+      - hub-next-cache:/app/.next
+    depends_on:
+      db:
+        condition: service_healthy
+      ts-hub:
+        condition: service_started
+
+  # Debug profile (Phase 3a O4=a): emergency local-only access when tailnet is
+  # unreachable. Mutually exclusive with `app` (shared volumes — DO NOT run both).
+  # Bring up: `docker compose stop app && docker compose --profile debug up -d app-debug`
+  # Tear down: `docker compose --profile debug down app-debug && docker compose up -d app`
+  app-debug:
+    profiles: [debug]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hub-app-debug
     restart: unless-stopped
     env_file: .env
     environment:
@@ -19,7 +69,6 @@ services:
         condition: service_healthy
     networks:
       - hub-internal
-      - jarvis-internal
 
   db:
     image: postgres:18-alpine
@@ -46,6 +95,7 @@ volumes:
   hub-db-data:
   hub-node-modules:
   hub-next-cache:
+  hub-ts-state:
 
 networks:
   hub-internal:

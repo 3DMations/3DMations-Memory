@@ -739,3 +739,20 @@ scp certs/clients/cachyos/client.crt \
 
 *Generated: 2026-04-10 | Audit: complete-audit-workflow.md + multi-agent review*
 *Next action: resolve AUDIT-001, AUDIT-003, AUDIT-008, AUDIT-009 first (blocking for any deployment)*
+
+---
+
+## v4.3 Phase 3 — Tailnet rollout (cross-project, 2026-04-25)
+
+The hub stack on this machine is migrating from `127.0.0.1:${APP_PORT}` (host-bound) to a Tailscale Serve sidecar — see `docs/plan-v4.3-phase-3.md` for the design. This is a cross-project action because each of the 5 machines that consume the hub (incl. 3DMations-OPS and 3DMations-DEV hosts) needs Tailscale installed and signed into the same tailnet.
+
+**Required on each client machine (NOT in this repo):**
+- Install Tailscale (`curl -fsSL https://tailscale.com/install.sh | sh` on Linux)
+- `sudo tailscale up` and complete login flow (same identity as hub admin)
+- Update each project's `.claude/local/hub.json` (per-project hub credentials, gitignored): change `https://<lan-ip>:8443` → `https://hub.<tailnet>.ts.net`
+
+**Deprecated by this rollout:**
+- `:8443` reservation (was for hub-tls / mTLS — replaced by Tailscale-managed certs)
+- mTLS client certs in OPS/DEV — Tailscale identity is the new auth boundary
+
+**Status:** Hub-side config landed (commit pending). Awaits user to mint Tailscale auth key and bring up. Client-machine Tailscale installs are user-driven; track per-machine status here once rollout begins.

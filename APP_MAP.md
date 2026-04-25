@@ -321,11 +321,40 @@ GIN trigram indexes do the heavy lifting; large headroom against the seal.
 ✓ vitest run → 26 passed (8 suites)
 ```
 
+## Phase 3 — Trusted (in progress, 2026-04-25)
+
+### 3a — Tailscale Serve sidecar (config landed, awaiting bring-up)
+
+**Topology change:** the app no longer publishes a host port. Tailnet (`https://hub.<tailnet>.ts.net:443`) is the only ingress. mTLS / `hub-tls:8443` from the original plan is **obsolete** — replaced by Tailscale-managed certs.
+
+**New container:** `ts-hub` (image `tailscale/tailscale:latest`, hostname `hub`, joined to both `hub-internal` and `jarvis-internal`). The `app` service uses `network_mode: service:ts-hub` — shares the netns, sees `db:5432` and `jarvis-ollama:11434` through it.
+
+**Debug profile** (`docker compose --profile debug up -d app-debug`): re-binds `127.0.0.1:${APP_PORT}:3000` for emergency local-only access. Mutually exclusive with `app` (shared volumes — operator runs `stop app` first).
+
+**New files:** `tailscale/serve.json` (HTTPS:443 → :3000, `AllowFunnel: false`), `.env.example` (with `TS_AUTHKEY` + `HUB_ADMIN_LOGIN` placeholders), `docker-compose.yml.bak` (snapshot of pre-3a config).
+
+**Pending user actions:** mint reusable+tagged Tailscale auth key, set `TS_AUTHKEY` and `HUB_ADMIN_LOGIN` in `.env`, run `docker compose up -d`.
+
+### 3b — Scrubber + Integrity (code landed, awaiting tests + seal)
+
+**Schema:** `memories.content_hash text` (column already in `db/schema.ts` from Phase 1; activated in 3b). Sync via `drizzle-kit push` at seal.
+
+**API addition:** `GET /api/memories/verify` — admin-gated drift detector. Reads `Tailscale-User-Login` header, compares to `HUB_ADMIN_LOGIN`. Returns `{checked, ok, unhashed, drift}`; status 200 if clean, 409 if drift, 401 unauthorized, 500 if `HUB_ADMIN_LOGIN` unset.
+
+**Server-side hashing:** `POST /api/memories` now computes `content_hash = sha256(canonicalize({title, content, category}))` itself; client-supplied `content_hash` is ignored. UPSERT path recomputes on update.
+
+**New helpers:**
+- `app/lib/hash.ts` — `canonicalize()`, `computeMemoryHash()`
+- `app/lib/tailscale-identity.ts` — `requireAdmin(req)` reads `Tailscale-User-Login`, no loopback exception (O4=a)
+
+**New skill:** `.claude/skills/hub-scrubber/` (12 patterns). Source-of-truth in this repo; per-machine install documented in `install.md`.
+
+**New tests:** `__tests__/scrubber.test.ts` (12 patterns + false-positive guards + multi-line PEM + payload helper), `__tests__/memories-hash.test.ts` (server-side compute, client-hash ignored, UPSERT recompute), `__tests__/verify.test.ts` (auth gate + drift induction via direct SQL UPDATE).
+
 ## Out of scope (per plan)
 
 | Phase | Adds | Touches APP_MAP |
 |-------|------|-----------------|
-| 3     | HTTPS termination + admin-token / signing-secret split | Adds `hub-tls` container at :8443; cron `pg_dump`; client-side scrubber; new `ADMIN_TOKEN` env distinct from `AUTH_SECRET`; `content_hash` populated; `/api/memories/verify` |
 | 4-5   | Self-improvement loops | In-app only, no new containers; flips `AI_FEATURES_ENABLED=true` for real use |
 
 This file MUST be updated at the seal of each phase.

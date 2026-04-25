@@ -2,10 +2,13 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { memories } from "@/db/schema";
 import { authenticate } from "@/lib/auth";
+import { computeMemoryHash } from "@/lib/hash";
 
 const MAX_LIMIT = 200;
 const DEFAULT_LIMIT = 50;
 
+// content_hash is computed server-side from {title, content, category};
+// any value sent by the client is ignored.
 interface CreateBody {
   session_id?: unknown;
   title?: unknown;
@@ -15,7 +18,6 @@ interface CreateBody {
   confidence?: unknown;
   recurrence?: unknown;
   local_entry_id?: unknown;
-  content_hash?: unknown;
   metadata?: unknown;
 }
 
@@ -66,15 +68,23 @@ export async function POST(request: Request) {
       ? (body.metadata as Record<string, unknown>)
       : undefined;
 
+  const trimmedTitle = title.trim();
+  const contentValue = typeof body.content === "string" ? body.content : null;
+  const categoryValue =
+    typeof body.category === "string" ? body.category : null;
+
   const insertValue = {
     sessionId,
-    title: title.trim(),
-    content: typeof body.content === "string" ? body.content : null,
-    category: typeof body.category === "string" ? body.category : null,
+    title: trimmedTitle,
+    content: contentValue,
+    category: categoryValue,
     localEntryId:
       typeof body.local_entry_id === "string" ? body.local_entry_id : null,
-    contentHash:
-      typeof body.content_hash === "string" ? body.content_hash : null,
+    contentHash: computeMemoryHash({
+      title: trimmedTitle,
+      content: contentValue,
+      category: categoryValue,
+    }),
     ...(tags !== undefined ? { tags } : {}),
     ...(confidence !== undefined ? { confidence } : {}),
     ...(recurrence !== undefined ? { recurrence } : {}),

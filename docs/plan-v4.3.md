@@ -50,7 +50,7 @@ validated as needed or quietly dropped.
 | UPSERT with `GREATEST()` for confidence/recurrence | Right idempotency pattern |
 | `content_hash` (SHA-256) | Detects entry mutation over time |
 | Schema version table | Migration discipline is cheap upfront |
-| Scrubber regex set (14 patterns) | Port into client-side skill |
+| Scrubber regex set (12 patterns) | Port into client-side skill (8 from v3.3 archive + 4 modern adds in 3b) |
 | Dashboard visual design | UX was thought through; port the design, not the code |
 | Capability request concept | One extra endpoint, real value |
 
@@ -505,7 +505,7 @@ Tune threshold if needed.
 - Caddy reverse proxy with automatic Let's Encrypt (or Tailscale HTTPS — simpler if already using Tailscale)
 - `pg_dump` cron container, 14-day rotation
 - Weekly automated backup restore smoke test
-- Client-side scrubber: 14 regex patterns from v3.3 into the Claude Code skill
+- Client-side scrubber: 12 regex patterns (8 from v3.3 archive + 4 modern adds — see plan-v4.3-phase-3.md §3b) into a Claude Code skill at `.claude/skills/hub-scrubber/`
 - `content_hash` populated on write; `/api/memories/verify` recomputes hashes
 
 ## Scrubber (client-side in Claude Code skill)

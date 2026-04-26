@@ -3,6 +3,10 @@ import { desc, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { memories, sessions } from "@/db/schema";
 import SessionDeleteButton from "./_components/SessionDeleteButton";
+import PageHeader from "./_components/ui/PageHeader";
+import Card from "./_components/ui/Card";
+import EmptyState from "./_components/ui/EmptyState";
+import StatPill from "./_components/ui/StatPill";
 
 export const dynamic = "force-dynamic";
 
@@ -21,93 +25,113 @@ export default async function SessionsPage() {
     .orderBy(desc(sessions.lastSeen));
 
   const [{ orphanCount }] = await db
-    .select({
-      orphanCount: sql<number>`COUNT(*)::int`,
-    })
+    .select({ orphanCount: sql<number>`COUNT(*)::int` })
     .from(memories)
     .where(isNull(memories.sessionId));
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-12 font-sans">
-      <header className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Memory Hub
-          </h1>
-          <p className="text-sm text-zinc-500">
-            {rows.length} session{rows.length === 1 ? "" : "s"}
-          </p>
-        </div>
-        <nav className="flex items-center gap-2 text-sm">
-          <Link
-            href="/search"
-            className="rounded-md border border-zinc-300 px-3 py-2 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
-          >
-            Search
-          </Link>
-          <Link
-            href="/compare"
-            className="rounded-md border border-zinc-300 px-3 py-2 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
-          >
-            Compare
-          </Link>
-          <Link
-            href="/new"
-            className="rounded-md bg-black px-3 py-2 font-medium text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
-          >
-            New session
-          </Link>
-        </nav>
-      </header>
+    <main className="mx-auto w-full max-w-3xl px-6 py-12 font-sans">
+      <PageHeader
+        title="Memory Hub"
+        description={
+          <>
+            {rows.length} session{rows.length === 1 ? "" : "s"} ·{" "}
+            {rows.reduce((acc, r) => acc + r.memoryCount, 0)} memor
+            {rows.reduce((acc, r) => acc + r.memoryCount, 0) === 1 ? "y" : "ies"}
+          </>
+        }
+        actions={
+          <>
+            <NavLink href="/search">Search</NavLink>
+            <NavLink href="/compare">Compare</NavLink>
+            <NavLink href="/new" primary>
+              + New session
+            </NavLink>
+          </>
+        }
+      />
 
       {rows.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-zinc-300 p-12 text-center text-sm text-zinc-500 dark:border-zinc-700">
-          No sessions yet. Create one to start writing memories.
-        </div>
+        <EmptyState
+          title="No sessions yet"
+          description="Create one to start writing memories from any tailnet machine."
+          action={<NavLink href="/new" primary>+ New session</NavLink>}
+        />
       ) : (
-        <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
+        <ul className="space-y-2">
           {rows.map((s) => (
-            <li key={s.id} className="flex items-start gap-2 py-4">
+            <Card as="li" key={s.id} className="flex items-stretch overflow-hidden">
               <Link
                 href={`/s/${s.id}`}
-                className="block flex-1 hover:bg-zinc-50 dark:hover:bg-zinc-900 rounded-md -mx-2 px-2 py-1"
+                className="block flex-1 px-5 py-4 hover:bg-surface-2/60 transition-colors"
               >
-                <div className="flex items-center justify-between">
-                  <span className="font-medium">{s.name}</span>
-                  <span className="text-xs text-zinc-500">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-medium text-text truncate">{s.name}</span>
+                  <StatPill tone="accent">
                     {s.memoryCount} memor{s.memoryCount === 1 ? "y" : "ies"}
-                  </span>
+                  </StatPill>
                 </div>
-                <div className="mt-1 flex items-center gap-3 text-xs text-zinc-500">
-                  <code className="font-mono">{s.id}</code>
-                  <span>·</span>
+                <div className="mt-1.5 flex items-center gap-2 text-[12px] text-text-subtle">
+                  <code className="font-mono text-text-muted">{s.id}</code>
+                  <span aria-hidden>·</span>
                   <span>last seen {formatDate(s.lastSeen)}</span>
                 </div>
               </Link>
-              <SessionDeleteButton
-                sessionId={s.id}
-                sessionName={s.name}
-                memoryCount={s.memoryCount}
-              />
-            </li>
+              <div className="flex items-center pr-3">
+                <SessionDeleteButton
+                  sessionId={s.id}
+                  sessionName={s.name}
+                  memoryCount={s.memoryCount}
+                />
+              </div>
+            </Card>
           ))}
         </ul>
       )}
 
       {orphanCount > 0 && (
-        <div className="mt-8 rounded-md border border-zinc-200 p-4 text-sm dark:border-zinc-800">
+        <Card as="div" interactive className="mt-8">
           <Link
             href="/orphaned"
-            className="flex items-center justify-between hover:underline"
+            className="flex items-center justify-between gap-3 px-5 py-4"
           >
-            <span>Orphaned memories</span>
-            <span className="text-zinc-500">
-              {orphanCount} memor{orphanCount === 1 ? "y" : "ies"} →
-            </span>
+            <div>
+              <div className="font-medium text-text">Orphaned memories</div>
+              <div className="text-[12px] text-text-subtle">
+                Memories whose session was deleted with the keep-memories option
+              </div>
+            </div>
+            <div className="flex items-center gap-2 text-text-muted">
+              <StatPill tone="warning">
+                {orphanCount} memor{orphanCount === 1 ? "y" : "ies"}
+              </StatPill>
+              <span aria-hidden>→</span>
+            </div>
           </Link>
-        </div>
+        </Card>
       )}
     </main>
+  );
+}
+
+function NavLink({
+  href,
+  children,
+  primary = false,
+}: {
+  href: string;
+  children: React.ReactNode;
+  primary?: boolean;
+}) {
+  const base =
+    "inline-flex items-center h-10 rounded-[var(--radius-button)] px-3.5 text-[13.5px] font-medium transition-colors";
+  const cls = primary
+    ? `${base} bg-accent text-white hover:bg-accent-hover`
+    : `${base} bg-transparent text-text border border-border hover:bg-surface-2 hover:border-border-strong`;
+  return (
+    <Link href={href} className={cls}>
+      {children}
+    </Link>
   );
 }
 

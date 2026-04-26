@@ -1,26 +1,121 @@
 @import "tailwindcss";
 
+/* Class-based dark mode (Tailwind v4): dark: variant fires when <html class="dark"> */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ─────────────────────────────  Design tokens  ──────────────────────────── */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Light mode (default fallback if no class set) */
+  --bg:           #fafaf9;
+  --surface:      #ffffff;
+  --surface-2:   #f5f5f4;
+  --border:       #e7e5e4;
+  --border-strong:#d6d3d1;
+  --text:         #1c1917;
+  --text-muted:   #57534e;
+  --text-subtle:  #a8a29e;
+  --accent:       #6366f1;
+  --accent-hover: #4f46e5;
+  --accent-soft:  #eef2ff;
+  --success:      #16a34a;
+  --warning:      #d97706;
+  --error:        #dc2626;
+  --shadow-sm:    0 1px 2px 0 rgb(0 0 0 / 0.04);
+  --shadow-md:    0 4px 12px -2px rgb(0 0 0 / 0.06), 0 2px 4px -2px rgb(0 0 0 / 0.04);
+  --shadow-lg:    0 12px 32px -8px rgb(0 0 0 / 0.10), 0 4px 8px -4px rgb(0 0 0 / 0.04);
 }
 
+.dark {
+  --bg:           #0b0d10;
+  --surface:      #15181d;
+  --surface-2:    #1c2027;
+  --border:       #252a32;
+  --border-strong:#363c46;
+  --text:         #e6e8eb;
+  --text-muted:   #9ca3af;
+  --text-subtle:  #6b7280;
+  --accent:       #818cf8;
+  --accent-hover: #a5b4fc;
+  --accent-soft:  #1e1b4b;
+  --success:      #4ade80;
+  --warning:      #fbbf24;
+  --error:        #f87171;
+  --shadow-sm:    0 1px 2px 0 rgb(0 0 0 / 0.30);
+  --shadow-md:    0 4px 12px -2px rgb(0 0 0 / 0.40), 0 2px 4px -2px rgb(0 0 0 / 0.30);
+  --shadow-lg:    0 12px 32px -8px rgb(0 0 0 / 0.50), 0 4px 8px -4px rgb(0 0 0 / 0.30);
+}
+
+/* Expose tokens as Tailwind utilities */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg:           var(--bg);
+  --color-surface:      var(--surface);
+  --color-surface-2:    var(--surface-2);
+  --color-border:       var(--border);
+  --color-border-strong:var(--border-strong);
+  --color-text:         var(--text);
+  --color-text-muted:   var(--text-muted);
+  --color-text-subtle:  var(--text-subtle);
+  --color-accent:       var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft:  var(--accent-soft);
+  --color-success:      var(--success);
+  --color-warning:      var(--warning);
+  --color-error:        var(--error);
+  --shadow-card-sm:     var(--shadow-sm);
+  --shadow-card-md:     var(--shadow-md);
+  --shadow-card-lg:     var(--shadow-lg);
+  --font-sans:          var(--font-geist-sans);
+  --font-mono:          var(--font-geist-mono);
+  --radius-card:        12px;
+  --radius-button:      8px;
+  --radius-pill:        9999px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ─────────────────────────────  Base styles  ────────────────────────────── */
+
+html {
+  background-color: var(--bg);
+  color: var(--text);
+  color-scheme: light dark;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-feature-settings: "ss01", "cv11";
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
+
+/* Headings: tighter tracking */
+h1, h2, h3, h4 {
+  letter-spacing: -0.011em;
+}
+
+/* Smooth theme switching */
+html, body, *,
+*::before, *::after {
+  transition: background-color 180ms ease, border-color 180ms ease,
+              color 180ms ease, box-shadow 180ms ease;
+}
+/* Don't transition transforms or layout — keep interactions snappy */
+html *:hover, html *:focus { transition-duration: 100ms; }
+
+/* Selection */
+::selection {
+  background-color: var(--accent);
+  color: var(--surface);
+}
+
+/* Native scrollbars: subtle in dark */
+.dark ::-webkit-scrollbar { width: 10px; height: 10px; }
+.dark ::-webkit-scrollbar-track { background: var(--bg); }
+.dark ::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 6px;
+  border: 2px solid var(--bg);
+}
+.dark ::-webkit-scrollbar-thumb:hover { background: var(--text-subtle); }

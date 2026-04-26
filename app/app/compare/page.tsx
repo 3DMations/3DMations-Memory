@@ -2,6 +2,9 @@ import Link from "next/link";
 import { desc, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { sessions } from "@/db/schema";
+import PageHeader from "../_components/ui/PageHeader";
+import Card from "../_components/ui/Card";
+import StatPill from "../_components/ui/StatPill";
 
 export const dynamic = "force-dynamic";
 
@@ -9,19 +12,20 @@ interface PageProps {
   searchParams: Promise<{ a?: string; b?: string; threshold?: string }>;
 }
 
-interface BothPair {
+// drizzle's db.execute<T> requires T extends Record<string, unknown>.
+type BothPair = Record<string, unknown> & {
   a_id: string;
   b_id: string;
   a_title: string;
   b_title: string;
   sim: number;
-}
+};
 
-interface OnlyRow {
+type OnlyRow = Record<string, unknown> & {
   id: string;
   title: string;
   category: string | null;
-}
+};
 
 export default async function ComparePage({ searchParams }: PageProps) {
   const { a, b, threshold: thrParam } = await searchParams;
@@ -102,88 +106,85 @@ export default async function ComparePage({ searchParams }: PageProps) {
   }
 
   return (
-    <main className="mx-auto max-w-6xl px-6 py-12 font-sans">
-      <Link href="/" className="text-sm text-zinc-500 hover:underline">
-        ← all sessions
-      </Link>
-      <header className="mb-6 mt-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Compare sessions</h1>
-        <p className="text-sm text-zinc-500">
-          See where two sessions overlap and where each has unique knowledge.
-          Default similarity threshold is 0.4.
-        </p>
-      </header>
+    <main className="mx-auto w-full max-w-6xl px-6 py-12 font-sans">
+      <PageHeader
+        back={
+          <Link href="/" className="text-text-muted hover:text-text transition-colors">
+            ← all sessions
+          </Link>
+        }
+        title="Compare sessions"
+        description="See where two sessions overlap and where each has unique knowledge. Default similarity threshold is 0.4."
+      />
 
-      <form
-        className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_auto_auto]"
-        method="get"
-      >
-        <SessionPicker
-          name="a"
-          label="Session A"
-          options={allSessions}
-          value={a}
-        />
-        <SessionPicker
-          name="b"
-          label="Session B"
-          options={allSessions}
-          value={b}
-        />
-        <label className="block text-sm">
-          <span className="block text-xs font-medium uppercase text-zinc-500">
-            threshold
-          </span>
-          <input
-            type="number"
-            name="threshold"
-            min={0.05}
-            max={0.95}
-            step={0.05}
-            defaultValue={threshold}
-            className="mt-1 w-24 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
-          />
-        </label>
-        <button
-          type="submit"
-          className="self-end rounded-md bg-black px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-black"
+      <Card className="mb-8 px-5 py-5">
+        <form
+          className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_1fr_auto_auto] sm:items-end"
+          method="get"
         >
-          Compare
-        </button>
-      </form>
+          <SessionPicker name="a" label="Session A" options={allSessions} value={a} />
+          <SessionPicker name="b" label="Session B" options={allSessions} value={b} />
+          <FieldLabel label="Threshold">
+            <input
+              type="number"
+              name="threshold"
+              min={0.05}
+              max={0.95}
+              step={0.05}
+              defaultValue={threshold}
+              className="w-24 rounded-[var(--radius-button)] border border-border bg-bg px-3 py-2 text-[14px] text-text focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+            />
+          </FieldLabel>
+          <button
+            type="submit"
+            className="inline-flex h-10 items-center justify-center rounded-[var(--radius-button)] bg-accent px-5 text-[14px] font-medium text-white transition-colors hover:bg-accent-hover"
+          >
+            Compare
+          </button>
+        </form>
+      </Card>
 
-      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {error && (
+        <div className="mb-6 rounded-[var(--radius-card)] border border-error/30 bg-error/10 px-4 py-3 text-[13.5px] text-error">
+          {error}
+        </div>
+      )}
 
       {!a || !b
         ? !error && (
-            <p className="text-sm text-zinc-500">Pick two sessions to compare.</p>
+            <p className="text-[13.5px] text-text-muted">
+              Pick two sessions and click Compare.
+            </p>
           )
         : null}
 
       {result && (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <Bucket
-            heading={`Only in ${result.aName}`}
-            items={result.inAOnly}
-            tone="left"
-          />
+          <Bucket heading={`Only in ${result.aName}`} items={result.inAOnly} tone="accent" />
           <Bucket
             heading="In both"
             items={result.inBoth.map<OnlyRow>((p) => ({
               id: p.a_id,
-              title: `${p.a_title}  ↔  ${p.b_title}  · ${(p.sim).toFixed(2)}`,
+              title: `${p.a_title}  ↔  ${p.b_title}  · ${p.sim.toFixed(2)}`,
               category: null,
             }))}
-            tone="middle"
+            tone="success"
           />
-          <Bucket
-            heading={`Only in ${result.bName}`}
-            items={result.inBOnly}
-            tone="right"
-          />
+          <Bucket heading={`Only in ${result.bName}`} items={result.inBOnly} tone="accent" />
         </div>
       )}
     </main>
+  );
+}
+
+function FieldLabel({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.06em] text-text-muted">
+        {label}
+      </span>
+      {children}
+    </label>
   );
 }
 
@@ -199,14 +200,11 @@ function SessionPicker({
   value?: string;
 }) {
   return (
-    <label className="block text-sm">
-      <span className="block text-xs font-medium uppercase text-zinc-500">
-        {label}
-      </span>
+    <FieldLabel label={label}>
       <select
         name={name}
         defaultValue={value ?? ""}
-        className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+        className="w-full rounded-[var(--radius-button)] border border-border bg-bg px-3 py-2 text-[14px] text-text focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
       >
         <option value="" disabled>
           Pick a session…
@@ -217,7 +215,7 @@ function SessionPicker({
           </option>
         ))}
       </select>
-    </label>
+    </FieldLabel>
   );
 }
 
@@ -228,37 +226,33 @@ function Bucket({
 }: {
   heading: string;
   items: OnlyRow[];
-  tone: "left" | "middle" | "right";
+  tone: "accent" | "success";
 }) {
-  const headerClass =
-    tone === "middle"
-      ? "border-zinc-300 dark:border-zinc-700"
-      : "border-zinc-200 dark:border-zinc-800";
   return (
-    <section className={`rounded-md border ${headerClass} p-4`}>
-      <h2 className="mb-3 flex items-baseline justify-between text-sm font-semibold">
-        <span>{heading}</span>
-        <span className="text-xs font-normal text-zinc-500">{items.length}</span>
+    <Card as="section" className="px-5 py-5">
+      <h2 className="mb-3 flex items-baseline justify-between gap-3">
+        <span className="text-[13.5px] font-semibold text-text leading-tight">
+          {heading}
+        </span>
+        <StatPill tone={tone}>{items.length}</StatPill>
       </h2>
       {items.length === 0 ? (
-        <p className="text-xs text-zinc-500">— none —</p>
+        <p className="text-[12px] text-text-subtle">— none —</p>
       ) : (
-        <ul className="space-y-2">
+        <ul className="space-y-1.5">
           {items.map((m) => (
             <li
               key={m.id}
-              className="rounded-md bg-zinc-50 p-2 text-xs dark:bg-zinc-900"
+              className="rounded-[var(--radius-button)] bg-surface-2 px-2.5 py-2 text-[12.5px] leading-snug"
             >
-              <div className="font-medium text-zinc-800 dark:text-zinc-200">
-                {m.title}
-              </div>
+              <div className="font-medium text-text">{m.title}</div>
               {m.category && (
-                <div className="mt-0.5 text-zinc-500">{m.category}</div>
+                <div className="mt-0.5 text-[11px] text-text-subtle">{m.category}</div>
               )}
             </li>
           ))}
         </ul>
       )}
-    </section>
+    </Card>
   );
 }

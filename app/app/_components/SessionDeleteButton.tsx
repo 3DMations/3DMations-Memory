@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import IconButton from "./ui/IconButton";
+import Button from "./ui/Button";
 
 const ADMIN_KEY = "memory-hub:admin-token";
 
@@ -85,22 +87,22 @@ export default function SessionDeleteButton({
 
   return (
     <>
-      <button
-        type="button"
-        aria-label={`Delete session ${sessionName}`}
+      <IconButton
+        size="sm"
+        label={`Delete session ${sessionName}`}
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
           setOpen(true);
         }}
-        className="rounded p-1.5 text-zinc-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950"
+        className="hover:!text-error hover:!bg-error/10"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
-          strokeWidth="2"
+          strokeWidth="1.8"
           strokeLinecap="round"
           strokeLinejoin="round"
           className="h-4 w-4"
@@ -110,31 +112,31 @@ export default function SessionDeleteButton({
           <path d="M10 11v6M14 11v6" />
           <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
         </svg>
-      </button>
+      </IconButton>
 
       {open && (
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
           onClick={close}
         >
           <div
-            className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl dark:bg-zinc-900"
+            className="w-full max-w-md rounded-[var(--radius-card)] border border-border bg-surface shadow-[var(--shadow-lg)] p-6"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="text-lg font-semibold">Delete session</h2>
-            <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-              <span className="font-medium">{sessionName}</span> ·{" "}
+            <h2 className="text-[18px] font-semibold tracking-[-0.01em] text-text">
+              Delete session
+            </h2>
+            <p className="mt-1.5 text-[13.5px] text-text-muted">
+              <span className="font-medium text-text">{sessionName}</span> ·{" "}
               {memoryCount} memor{memoryCount === 1 ? "y" : "ies"}
             </p>
 
             {!adminToken ? (
-              <div className="mt-6 space-y-3">
-                <label className="block text-sm">
-                  <span className="text-zinc-700 dark:text-zinc-300">
-                    Admin token
-                  </span>
+              <div className="mt-6 space-y-4">
+                <label className="block text-[13px]">
+                  <span className="font-medium text-text">Admin token</span>
                   <input
                     type="password"
                     autoFocus
@@ -143,80 +145,69 @@ export default function SessionDeleteButton({
                     onKeyDown={(e) => {
                       if (e.key === "Enter") saveToken();
                     }}
-                    className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 font-mono text-sm dark:border-zinc-700 dark:bg-zinc-950"
-                    placeholder="AUTH_SECRET value from .env"
+                    className="mt-1.5 w-full rounded-[var(--radius-button)] border border-border bg-bg px-3 py-2 font-mono text-[13px] text-text placeholder:text-text-subtle focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+                    placeholder="AUTH_SECRET from .env"
                   />
-                  <span className="mt-1 block text-xs text-zinc-500">
+                  <span className="mt-1.5 block text-[12px] text-text-subtle">
                     Cached for this browser tab only.
                   </span>
                 </label>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={saveToken}
-                    disabled={!tokenInput.trim()}
-                    className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-black"
-                  >
+                <div className="flex gap-2 pt-1">
+                  <Button onClick={saveToken} disabled={!tokenInput.trim()}>
                     Continue
-                  </button>
-                  <button
-                    type="button"
-                    onClick={close}
-                    className="rounded-md border border-zinc-300 px-4 py-2 text-sm dark:border-zinc-700"
-                  >
+                  </Button>
+                  <Button variant="outline" onClick={close}>
                     Cancel
-                  </button>
+                  </Button>
                 </div>
               </div>
             ) : (
               <div className="mt-6 space-y-3">
-                <p className="text-sm text-zinc-700 dark:text-zinc-300">
+                <p className="text-[13px] text-text-muted">
                   Choose what to do with this session&apos;s memories:
                 </p>
+
                 <button
                   type="button"
                   disabled={status === "deleting"}
                   onClick={() => performDelete(false)}
-                  className="w-full rounded-md border border-zinc-300 px-4 py-2 text-left text-sm hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                  className="w-full rounded-[var(--radius-button)] border border-border bg-surface-2/50 px-4 py-3 text-left transition-all hover:border-border-strong hover:bg-surface-2 disabled:opacity-50"
                 >
-                  <div className="font-medium">
+                  <div className="font-medium text-text text-[14px]">
                     Delete session — keep memories
                   </div>
-                  <div className="text-xs text-zinc-500">
-                    Memories survive without a session and appear under
-                    /orphaned.
+                  <div className="mt-0.5 text-[12.5px] text-text-muted">
+                    Memories survive without a session and appear under /orphaned.
                   </div>
                 </button>
+
                 <button
                   type="button"
                   disabled={status === "deleting"}
                   onClick={() => performDelete(true)}
-                  className="w-full rounded-md border border-red-300 bg-red-50 px-4 py-2 text-left text-sm hover:bg-red-100 disabled:opacity-50 dark:border-red-900 dark:bg-red-950 dark:hover:bg-red-900"
+                  className="w-full rounded-[var(--radius-button)] border border-error/30 bg-error/10 px-4 py-3 text-left transition-all hover:bg-error/20 hover:border-error/50 disabled:opacity-50"
                 >
-                  <div className="font-medium text-red-700 dark:text-red-300">
+                  <div className="font-medium text-error text-[14px]">
                     Delete session + all memories
                   </div>
-                  <div className="text-xs text-red-600 dark:text-red-400">
+                  <div className="mt-0.5 text-[12.5px] text-error/80">
                     Hard delete. {memoryCount} memor
                     {memoryCount === 1 ? "y" : "ies"} permanently removed.
                   </div>
                 </button>
 
                 {error && (
-                  <p className="text-sm text-red-600 dark:text-red-400">
-                    {error}
-                  </p>
+                  <p className="text-[13px] text-error">{error}</p>
                 )}
 
                 <div className="flex justify-end pt-2">
-                  <button
-                    type="button"
+                  <Button
+                    variant="ghost"
                     onClick={close}
                     disabled={status === "deleting"}
-                    className="rounded-md border border-zinc-300 px-4 py-2 text-sm disabled:opacity-50 dark:border-zinc-700"
                   >
                     Cancel
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}

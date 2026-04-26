@@ -25,13 +25,28 @@ export default function SearchInput({ initial }: { initial: string }) {
   }, [value, router, sp]);
 
   return (
-    <input
-      type="text"
-      value={value}
-      autoFocus
-      onChange={(e) => setValue(e.target.value)}
-      placeholder="search across all sessions…"
-      className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
-    />
+    <div className="relative">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+        className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-subtle"
+      >
+        <circle cx="11" cy="11" r="7" />
+        <path d="m20 20-3.5-3.5" />
+      </svg>
+      <input
+        type="search"
+        value={value}
+        autoFocus
+        onChange={(e) => setValue(e.target.value)}
+        placeholder="Search across all sessions…"
+        className="w-full rounded-[var(--radius-button)] border border-border bg-surface pl-10 pr-3.5 py-2.5 text-[14px] text-text placeholder:text-text-subtle focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30 transition-colors"
+      />
+    </div>
   );
 }

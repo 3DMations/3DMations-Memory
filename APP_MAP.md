@@ -321,11 +321,11 @@ GIN trigram indexes do the heavy lifting; large headroom against the seal.
 ✓ vitest run → 26 passed (8 suites)
 ```
 
-## Phase 3 — Trusted (in progress, 2026-04-25)
+## Phase 3 — Trusted (sealed 2026-04-25)
 
-### 3a — Tailscale Serve sidecar (config landed, awaiting bring-up)
+### 3a — Tailscale Serve sidecar (live)
 
-**Topology change:** the app no longer publishes a host port. Tailnet (`https://hub.<tailnet>.ts.net:443`) is the only ingress. mTLS / `hub-tls:8443` from the original plan is **obsolete** — replaced by Tailscale-managed certs.
+**Topology change:** the app no longer publishes a host port. Tailnet (`https://hub.tail1e2290.ts.net`) is the only ingress. mTLS / `hub-tls:8443` from the original plan is **obsolete** — replaced by Tailscale-managed certs.
 
 **New container:** `ts-hub` (image `tailscale/tailscale:latest`, hostname `hub`, joined to both `hub-internal` and `jarvis-internal`). The `app` service uses `network_mode: service:ts-hub` — shares the netns, sees `db:5432` and `jarvis-ollama:11434` through it.
 
@@ -335,7 +335,11 @@ GIN trigram indexes do the heavy lifting; large headroom against the seal.
 
 **Pending user actions:** mint reusable+tagged Tailscale auth key, set `TS_AUTHKEY` and `HUB_ADMIN_LOGIN` in `.env`, run `docker compose up -d`.
 
-### 3b — Scrubber + Integrity (code landed, awaiting tests + seal)
+### 3b — Scrubber + Integrity (live)
+
+**Verified end-to-end:** `GET /api/memories/verify` returned `{checked: 28, ok: 2, unhashed: 26, drift: []}` after bring-up. The 26 unhashed are pre-3b legacy rows; new writes set content_hash server-side.
+
+**Vitest:** 11 suites / 51 tests passing inside the container.
 
 **Schema:** `memories.content_hash text` (column already in `db/schema.ts` from Phase 1; activated in 3b). Sync via `drizzle-kit push` at seal.
 

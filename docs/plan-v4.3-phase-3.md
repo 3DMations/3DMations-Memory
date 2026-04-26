@@ -2,7 +2,20 @@
 
 **Date proposed:** 2026-04-25
 **Slot:** After Phase 2 (sealed at 12cc6fa) — next phase to seal
-**Status:** O1–O4 resolved 2026-04-25. 3a config files written + compose validated; awaits user to mint Tailscale auth key and run bring-up. 3b not started.
+**Status:** SEALED 2026-04-25. 3a tailnet HTTPS live at `https://hub.tail1e2290.ts.net`; 3b verify endpoint working (28 memories checked, 0 drift). Full vitest suite 51/51.
+
+**Actual tailnet domain:** `tail1e2290.ts.net` (NOT `3dmations.github.ts.net` — Tailscale uses a random tailnet identifier for the DNS suffix; the org name shown in admin UI is just a display label).
+
+## Bring-up gotchas hit (2026-04-25)
+
+For a future hub (or someone redoing this on another tailnet):
+
+1. **HTTPS toggle required.** ts-hub starts but cert provisioning fails until you go to https://login.tailscale.com/admin/dns and click **Enable HTTPS** under HTTPS Certificates section. MagicDNS must be on. Acknowledge the public Certificate Transparency log disclosure (machine names get published).
+2. **Netns invalidation on sidecar restart.** `docker compose restart ts-hub` leaves dependent app's `network_mode: service:ts-hub` reference pointing to a stale netns ID. Symptom: `wget 127.0.0.1:3000` from inside ts-hub returns "connection refused" while same call from inside app works. Verify with `sudo readlink /proc/$(docker inspect hub-ts --format '{{.State.Pid}}')/ns/net` vs same for hub-app — they should be identical. Fix: `docker compose up -d --force-recreate app`. **Always** force-recreate dependents after touching the sidecar.
+3. **Drizzle non-interactive prompt.** `drizzle-kit push` blocks on a TTY prompt when it sees the manually-managed `schema_version` table (created by `post-push-init.sql`, not in `db/schema.ts`) — drizzle wants to drop it. Skip drizzle-kit push when the only diff is schema_version; verify columns directly via `psql -c '\d memories'`.
+4. **Skill volume mount needed for tests.** `__tests__/scrubber.test.ts` imports the source-of-truth at `../../.claude/skills/hub-scrubber/...`. The default `./app:/app` bind mount doesn't expose `.claude/`. Add `./.claude/skills:/.claude/skills:ro` to the app service's volumes.
+5. **GitHub SSO identity casing.** Tailscale preserves GitHub username casing in user identities (`3DMations@github`) but operators commonly normalize to lowercase when setting `HUB_ADMIN_LOGIN`. Verify the *exact* string with `tailscale whois <ip>` rather than guessing. Server compare is now case-insensitive (`tailscale-identity.ts`) so this is forgiving.
+6. **SSH agent signing.** `git push` may fail with "agent refused operation" if the SSH agent has the key but requires GUI/passphrase confirmation that's not surfaced. `ssh -T git@github.com` to force the prompt.
 
 ---
 

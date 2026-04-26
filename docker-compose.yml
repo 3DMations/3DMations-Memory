@@ -38,6 +38,9 @@ services:
       - ./app:/app
       - hub-node-modules:/app/node_modules
       - hub-next-cache:/app/.next
+      # Mount the hub-scrubber skill at the relative path the test expects
+      # (test does `../../.claude/skills/hub-scrubber/...` from /app/__tests__/).
+      - ./.claude/skills:/.claude/skills:ro
     depends_on:
       db:
         condition: service_healthy

@@ -38,7 +38,10 @@ export function requireAdmin(request: Request): AdminCheck {
       error: "tailscale identity required",
     };
   }
-  if (login !== expected) {
+  // Case-insensitive: GitHub SSO preserves user-handle casing
+  // (e.g., "3DMations@github") but operators commonly normalize to lowercase
+  // when copying into .env. Identities are conventionally case-insensitive.
+  if (login.toLowerCase() !== expected.toLowerCase()) {
     return {
       ok: false,
       status: 401,

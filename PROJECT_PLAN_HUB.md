@@ -755,4 +755,13 @@ The hub stack on this machine is migrating from `127.0.0.1:${APP_PORT}` (host-bo
 - `:8443` reservation (was for hub-tls / mTLS — replaced by Tailscale-managed certs)
 - mTLS client certs in OPS/DEV — Tailscale identity is the new auth boundary
 
-**Status:** Hub-side config landed (commit pending). Awaits user to mint Tailscale auth key and bring up. Client-machine Tailscale installs are user-driven; track per-machine status here once rollout begins.
+**Status:** Hub-side LIVE 2026-04-25 at `https://hub.tail1e2290.ts.net`. Tailnet domain is `tail1e2290.ts.net` (NOT `3dmations.github` — Tailscale uses a random suffix). HTTPS toggle on tailnet is enabled. ACL has `tag:hub` defined.
+
+**Tailnet membership (2026-04-25):**
+- ✅ `hub` (this host's docker sidecar, tagged `tag:hub`) — `100.77.207.85`
+- ✅ `aiwork-legion` (this host) — `100.98.220.125`
+- ✅ `3dm-inspiron-5547` — `100.123.124.102`
+- ✅ `pc-001` — `100.96.204.41`
+- ⏳ 1 more machine pending (5 total target per plan)
+
+**Client `.claude/local/hub.json` updates:** still TODO on each client machine — switch from `https://<lan-ip>:8443` to `https://hub.tail1e2290.ts.net`. No auth needed beyond tailnet membership; admin operations (DELETE, /verify) require `Tailscale-User-Login` matching `HUB_ADMIN_LOGIN` server-side.

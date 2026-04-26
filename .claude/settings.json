@@ -9,12 +9,25 @@
     ]
   },
   "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "mkdir -p /tmp/claude-stop-arm && jq -r '.session_id // \"unknown\"' | { read -r sid; touch \"/tmp/claude-stop-arm/${sid}\"; }",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [
           {
-            "type": "prompt",
-            "prompt": "Review what was just completed. Were there any errors, failed commands, unexpected behaviors, retries, or corrections? Ignore any issues with the memory system itself (broken entries, failed syncs, etc). Respond with LEARNING: [one-line description] if a non-memory-system issue was found, or OK if no issues. If a LEARNING is found and involves a failed command or error output, also respond with TRACE: [the exact error message or failed command] on a separate line."
+            "type": "command",
+            "command": "INPUT=$(cat); SID=$(echo \"$INPUT\" | jq -r '.session_id // \"unknown\"'); LOCK=\"/tmp/claude-stop-arm/${SID}\"; if [ -f \"$LOCK\" ]; then rm -f \"$LOCK\"; jq -n '{decision:\"block\",reason:\"Review what was just completed. Were there any errors, failed commands, unexpected behaviors, retries, or corrections? Ignore any issues with the memory system itself (broken entries, failed syncs, etc). Respond with LEARNING: [one-line description] if a non-memory-system issue was found, or OK if no issues. If a LEARNING is found and involves a failed command or error output, also respond with TRACE: [the exact error message or failed command] on a separate line.\"}'; fi",
+            "timeout": 10
           }
         ]
       }

@@ -125,17 +125,17 @@ export default function SessionDeleteButton({
             className="w-full max-w-md rounded-[var(--radius-card)] border border-border bg-surface shadow-[var(--shadow-lg)] p-6"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="text-[18px] font-semibold tracking-[-0.01em] text-text">
+            <h2 className="text-[20px] font-semibold tracking-[-0.01em] text-text">
               Delete session
             </h2>
-            <p className="mt-1.5 text-[13.5px] text-text-muted">
+            <p className="mt-1.5 text-[15.5px] text-text-muted">
               <span className="font-medium text-text">{sessionName}</span> ·{" "}
               {memoryCount} memor{memoryCount === 1 ? "y" : "ies"}
             </p>
 
             {!adminToken ? (
               <div className="mt-6 space-y-4">
-                <label className="block text-[13px]">
+                <label className="block text-[15px]">
                   <span className="font-medium text-text">Admin token</span>
                   <input
                     type="password"
@@ -145,10 +145,10 @@ export default function SessionDeleteButton({
                     onKeyDown={(e) => {
                       if (e.key === "Enter") saveToken();
                     }}
-                    className="mt-1.5 w-full rounded-[var(--radius-button)] border border-border bg-bg px-3 py-2 font-mono text-[13px] text-text placeholder:text-text-subtle focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+                    className="mt-1.5 w-full rounded-[var(--radius-button)] border border-border bg-bg px-3 py-2 font-mono text-[15px] text-text placeholder:text-text-subtle focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
                     placeholder="AUTH_SECRET from .env"
                   />
-                  <span className="mt-1.5 block text-[12px] text-text-subtle">
+                  <span className="mt-1.5 block text-[14px] text-text-subtle">
                     Cached for this browser tab only.
                   </span>
                 </label>
@@ -163,7 +163,7 @@ export default function SessionDeleteButton({
               </div>
             ) : (
               <div className="mt-6 space-y-3">
-                <p className="text-[13px] text-text-muted">
+                <p className="text-[15px] text-text-muted">
                   Choose what to do with this session&apos;s memories:
                 </p>
 
@@ -173,10 +173,10 @@ export default function SessionDeleteButton({
                   onClick={() => performDelete(false)}
                   className="w-full rounded-[var(--radius-button)] border border-border bg-surface-2/50 px-4 py-3 text-left transition-all hover:border-border-strong hover:bg-surface-2 disabled:opacity-50"
                 >
-                  <div className="font-medium text-text text-[14px]">
+                  <div className="font-medium text-text text-[16px]">
                     Delete session — keep memories
                   </div>
-                  <div className="mt-0.5 text-[12.5px] text-text-muted">
+                  <div className="mt-0.5 text-[14.5px] text-text-muted">
                     Memories survive without a session and appear under /orphaned.
                   </div>
                 </button>
@@ -187,17 +187,17 @@ export default function SessionDeleteButton({
                   onClick={() => performDelete(true)}
                   className="w-full rounded-[var(--radius-button)] border border-error/30 bg-error/10 px-4 py-3 text-left transition-all hover:bg-error/20 hover:border-error/50 disabled:opacity-50"
                 >
-                  <div className="font-medium text-error text-[14px]">
+                  <div className="font-medium text-error text-[16px]">
                     Delete session + all memories
                   </div>
-                  <div className="mt-0.5 text-[12.5px] text-error/80">
+                  <div className="mt-0.5 text-[14.5px] text-error/80">
                     Hard delete. {memoryCount} memor
                     {memoryCount === 1 ? "y" : "ies"} permanently removed.
                   </div>
                 </button>
 
                 {error && (
-                  <p className="text-[13px] text-error">{error}</p>
+                  <p className="text-[15px] text-error">{error}</p>
                 )}
 
                 <div className="flex justify-end pt-2">

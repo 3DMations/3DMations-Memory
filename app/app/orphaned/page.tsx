@@ -45,7 +45,7 @@ export default async function OrphanedPage() {
           {rows.map((m) => (
             <Card as="li" key={m.id} className="px-5 py-4">
               <div className="flex items-start justify-between gap-3">
-                <h2 className="font-medium text-text text-[15px] leading-snug">
+                <h2 className="font-medium text-text text-[17px] leading-snug">
                   {m.title}
                 </h2>
                 {m.category && (
@@ -55,7 +55,7 @@ export default async function OrphanedPage() {
                 )}
               </div>
               {m.content && (
-                <p className="mt-2 whitespace-pre-wrap text-[13.5px] text-text-muted leading-relaxed">
+                <p className="mt-2 whitespace-pre-wrap text-[15.5px] text-text-muted leading-relaxed">
                   {m.content}
                 </p>
               )}
@@ -64,14 +64,14 @@ export default async function OrphanedPage() {
                   {m.tags.map((t: string) => (
                     <span
                       key={t}
-                      className="inline-flex items-center rounded-[var(--radius-pill)] bg-surface-2 px-2 py-0.5 text-[11.5px] text-text-muted font-mono"
+                      className="inline-flex items-center rounded-[var(--radius-pill)] bg-surface-2 px-2 py-0.5 text-[13.5px] text-text-muted font-mono"
                     >
                       {t}
                     </span>
                   ))}
                 </div>
               )}
-              <div className="mt-3 text-[12px] text-text-subtle font-mono">
+              <div className="mt-3 text-[14px] text-text-subtle font-mono">
                 {new Date(m.createdAt!).toISOString().slice(0, 16)} UTC
                 {m.localEntryId && <> · local id: {m.localEntryId}</>}
               </div>

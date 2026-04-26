@@ -126,10 +126,10 @@ export default async function StatsPage() {
       {/* Over time */}
       <Card className="mb-8 px-5 py-5">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-[13.5px] font-semibold text-text">
+          <h2 className="text-[15.5px] font-semibold text-text">
             Memories created — last 30 days
           </h2>
-          <span className="text-[12px] text-text-subtle">
+          <span className="text-[14px] text-text-subtle">
             {days.reduce((a, d) => a + d.count, 0)} total
           </span>
         </div>
@@ -147,7 +147,7 @@ export default async function StatsPage() {
             );
           })}
         </div>
-        <div className="mt-2 flex justify-between text-[11px] text-text-subtle">
+        <div className="mt-2 flex justify-between text-[13px] text-text-subtle">
           <span>{days[0]?.day}</span>
           <span>{days[days.length - 1]?.day}</span>
         </div>
@@ -156,14 +156,14 @@ export default async function StatsPage() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Top tags */}
         <Card className="px-5 py-5">
-          <h2 className="mb-3 text-[13.5px] font-semibold text-text">Top tags</h2>
+          <h2 className="mb-3 text-[15.5px] font-semibold text-text">Top tags</h2>
           {tagsResult.rows.length === 0 ? (
-            <p className="text-[12.5px] text-text-subtle">— no tags yet —</p>
+            <p className="text-[14.5px] text-text-subtle">— no tags yet —</p>
           ) : (
             <ul className="space-y-1.5">
               {tagsResult.rows.map((t) => (
                 <li key={t.tag} className="flex items-center justify-between">
-                  <code className="font-mono text-[13px] text-text">{t.tag}</code>
+                  <code className="font-mono text-[15px] text-text">{t.tag}</code>
                   <StatPill tone="accent">{t.count}</StatPill>
                 </li>
               ))}
@@ -173,7 +173,7 @@ export default async function StatsPage() {
 
         {/* Most recurrent */}
         <Card className="px-5 py-5">
-          <h2 className="mb-3 text-[13.5px] font-semibold text-text">
+          <h2 className="mb-3 text-[15.5px] font-semibold text-text">
             Most recurrent
           </h2>
           {recurrent.rows.length === 0 ? (
@@ -193,17 +193,17 @@ export default async function StatsPage() {
                       {r.session_id ? (
                         <Link
                           href={`/s/${r.session_id}`}
-                          className="text-[13px] font-medium text-text hover:text-accent line-clamp-1"
+                          className="text-[15px] font-medium text-text hover:text-accent line-clamp-1"
                         >
                           {r.title}
                         </Link>
                       ) : (
-                        <span className="text-[13px] font-medium text-text line-clamp-1">
+                        <span className="text-[15px] font-medium text-text line-clamp-1">
                           {r.title}
                         </span>
                       )}
                       {r.session_name && (
-                        <div className="text-[11px] text-text-subtle mt-0.5">
+                        <div className="text-[13px] text-text-subtle mt-0.5">
                           {r.session_name}
                         </div>
                       )}
@@ -219,7 +219,7 @@ export default async function StatsPage() {
 
       {/* Recent sessions */}
       <Card className="mt-4 px-5 py-5">
-        <h2 className="mb-3 text-[13.5px] font-semibold text-text">
+        <h2 className="mb-3 text-[15.5px] font-semibold text-text">
           Recent sessions
         </h2>
         <ul className="space-y-1.5">
@@ -230,8 +230,8 @@ export default async function StatsPage() {
                 className="flex items-center justify-between rounded-[var(--radius-button)] bg-surface-2 px-3 py-2 hover:bg-border transition-colors"
               >
                 <div>
-                  <div className="text-[13px] font-medium text-text">{s.name}</div>
-                  <div className="text-[11px] text-text-subtle font-mono mt-0.5">
+                  <div className="text-[15px] font-medium text-text">{s.name}</div>
+                  <div className="text-[13px] text-text-subtle font-mono mt-0.5">
                     last seen {s.lastSeen?.toISOString().slice(0, 16) ?? "never"} UTC
                   </div>
                 </div>
@@ -256,12 +256,12 @@ function Kpi({
 }) {
   return (
     <Card className="px-5 py-5">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-muted">
+      <div className="text-[13px] font-semibold uppercase tracking-[0.06em] text-text-muted">
         {label}
       </div>
       <div
         className={
-          "mt-1 text-[28px] font-semibold tracking-[-0.02em] tabular-nums " +
+          "mt-1 text-[30px] font-semibold tracking-[-0.02em] tabular-nums " +
           (tone === "warning" ? "text-warning" : "text-text")
         }
       >

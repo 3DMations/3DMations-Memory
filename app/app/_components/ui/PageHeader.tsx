@@ -15,14 +15,14 @@ export default function PageHeader({
 }: PageHeaderProps) {
   return (
     <header className="mb-8">
-      {back ? <div className="mb-3 text-[13px]">{back}</div> : null}
+      {back ? <div className="mb-3 text-[15px]">{back}</div> : null}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-[28px] font-semibold tracking-[-0.02em] text-text leading-tight">
+          <h1 className="text-[30px] font-semibold tracking-[-0.02em] text-text leading-tight">
             {title}
           </h1>
           {description ? (
-            <p className="mt-1 text-[14px] text-text-muted">{description}</p>
+            <p className="mt-1 text-[16px] text-text-muted">{description}</p>
           ) : null}
         </div>
         {actions ? (

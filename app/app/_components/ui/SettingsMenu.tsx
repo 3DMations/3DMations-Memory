@@ -1,9 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useTheme } from "./ThemeProvider";
 
-function GearIcon({ className = "" }: { className?: string }) {
+function HamburgerIcon({ className = "" }: { className?: string }) {
   return (
     <svg
       width="18"
@@ -17,11 +18,19 @@ function GearIcon({ className = "" }: { className?: string }) {
       className={className}
       aria-hidden="true"
     >
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+      <line x1="4" y1="7" x2="20" y2="7" />
+      <line x1="4" y1="12" x2="20" y2="12" />
+      <line x1="4" y1="17" x2="20" y2="17" />
     </svg>
   );
 }
+
+const NAV_ITEMS: { href: string; label: string }[] = [
+  { href: "/search", label: "Search" },
+  { href: "/compare", label: "Compare" },
+  { href: "/stats", label: "Stats" },
+  { href: "/gotchas", label: "Gotchas" },
+];
 
 function SunIcon() {
   return (
@@ -66,54 +75,66 @@ export default function SettingsMenu() {
     <div ref={ref} className="fixed right-4 top-4 z-50">
       <button
         type="button"
-        aria-label="Settings"
-        title="Settings"
+        aria-label="Menu"
+        title="Menu"
         aria-expanded={open}
         aria-haspopup="menu"
         onClick={() => setOpen((o) => !o)}
         className="inline-flex h-10 w-10 items-center justify-center rounded-[var(--radius-button)] border border-border bg-surface/80 text-text-muted backdrop-blur transition-[background,color,transform] hover:bg-surface-2 hover:text-text active:translate-y-[1px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
       >
-        <GearIcon className={open ? "rotate-45 transition-transform" : "transition-transform"} />
+        <HamburgerIcon />
       </button>
 
       {open && (
         <div
           role="menu"
-          className="absolute right-0 top-12 w-56 rounded-[var(--radius-card)] border border-border bg-surface p-1.5 shadow-[var(--shadow-lg)]"
+          className="absolute right-0 top-12 w-40 rounded-[var(--radius-card)] border border-border bg-surface p-1 shadow-[var(--shadow-lg)]"
         >
-          <div className="px-2.5 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-subtle">
-            Theme
-          </div>
-          <div className="grid grid-cols-2 gap-1 px-1.5 pb-1.5">
+          <div className="flex justify-center py-1">
             <button
               type="button"
-              role="menuitemradio"
-              aria-checked={theme === "light"}
-              onClick={() => setTheme("light")}
-              className={
-                "flex items-center justify-center gap-2 rounded-[var(--radius-button)] px-3 py-2 text-[13px] font-medium transition-colors " +
-                (theme === "light"
-                  ? "bg-accent text-white"
-                  : "bg-surface-2 text-text hover:bg-border")
-              }
-            >
-              <SunIcon /> Light
-            </button>
-            <button
-              type="button"
-              role="menuitemradio"
+              role="switch"
               aria-checked={theme === "dark"}
-              onClick={() => setTheme("dark")}
-              className={
-                "flex items-center justify-center gap-2 rounded-[var(--radius-button)] px-3 py-2 text-[13px] font-medium transition-colors " +
-                (theme === "dark"
-                  ? "bg-accent text-white"
-                  : "bg-surface-2 text-text hover:bg-border")
-              }
+              aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              className="relative inline-flex h-7 w-14 items-center rounded-full border border-border bg-surface-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
-              <MoonIcon /> Dark
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute left-1.5 flex h-4 w-4 items-center justify-center text-warning"
+              >
+                <SunIcon />
+              </span>
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute right-1.5 flex h-4 w-4 items-center justify-center text-text-muted"
+              >
+                <MoonIcon />
+              </span>
+              <span
+                aria-hidden="true"
+                className={
+                  "inline-block h-5 w-5 transform rounded-full bg-warning shadow transition-transform " +
+                  (theme === "dark" ? "translate-x-[34px]" : "translate-x-[2px]")
+                }
+              />
             </button>
           </div>
+          <ul>
+            {NAV_ITEMS.map((item) => (
+              <li key={item.href}>
+                <Link
+                  href={item.href}
+                  role="menuitem"
+                  onClick={() => setOpen(false)}
+                  className="block rounded-[var(--radius-button)] px-2 py-1.5 text-center text-[15px] font-medium text-text hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                >
+                  {item.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </div>

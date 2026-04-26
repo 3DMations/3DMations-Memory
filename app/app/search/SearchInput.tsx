@@ -45,7 +45,7 @@ export default function SearchInput({ initial }: { initial: string }) {
         autoFocus
         onChange={(e) => setValue(e.target.value)}
         placeholder="Search across all sessions…"
-        className="w-full rounded-[var(--radius-button)] border border-border bg-surface pl-10 pr-3.5 py-2.5 text-[14px] text-text placeholder:text-text-subtle focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30 transition-colors"
+        className="w-full rounded-[var(--radius-button)] border border-border bg-surface pl-10 pr-3.5 py-2.5 text-[16px] text-text placeholder:text-text-subtle focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30 transition-colors"
       />
     </div>
   );

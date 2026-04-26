@@ -20,9 +20,9 @@ export default function EmptyState({
           {icon}
         </div>
       ) : null}
-      <p className="text-[15px] font-medium text-text">{title}</p>
+      <p className="text-[17px] font-medium text-text">{title}</p>
       {description ? (
-        <p className="mx-auto mt-1 max-w-md text-[13px] text-text-muted">
+        <p className="mx-auto mt-1 max-w-md text-[15px] text-text-muted">
           {description}
         </p>
       ) : null}

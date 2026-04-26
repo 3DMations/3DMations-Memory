@@ -74,7 +74,7 @@ export default function NewSessionPage() {
             </Row>
             <Row label="Bearer token">
               <div className="flex items-start gap-2">
-                <code className="flex-1 break-all rounded-[var(--radius-button)] bg-bg border border-border p-3 font-mono text-[12px] text-text">
+                <code className="flex-1 break-all rounded-[var(--radius-button)] bg-bg border border-border p-3 font-mono text-[14px] text-text">
                   {created.token}
                 </code>
                 <Button
@@ -118,7 +118,7 @@ export default function NewSessionPage() {
       <Card className="px-5 py-5">
         <form onSubmit={onSubmit} className="space-y-5">
           <label className="block">
-            <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.06em] text-text-muted">
+            <span className="mb-1.5 block text-[13px] font-semibold uppercase tracking-[0.06em] text-text-muted">
               Name
             </span>
             <input
@@ -128,15 +128,15 @@ export default function NewSessionPage() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="inspiron-myproject"
-              className="w-full rounded-[var(--radius-button)] border border-border bg-bg px-3 py-2.5 text-[14px] text-text placeholder:text-text-subtle focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30 transition-colors"
+              className="w-full rounded-[var(--radius-button)] border border-border bg-bg px-3 py-2.5 text-[16px] text-text placeholder:text-text-subtle focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30 transition-colors"
             />
-            <span className="mt-1.5 block text-[12px] text-text-subtle">
+            <span className="mt-1.5 block text-[14px] text-text-subtle">
               Convention: <code className="font-mono">{`<machine>-<project>`}</code>
             </span>
           </label>
 
           {error && (
-            <div className="rounded-[var(--radius-button)] border border-error/30 bg-error/10 px-3 py-2 text-[13px] text-error">
+            <div className="rounded-[var(--radius-button)] border border-error/30 bg-error/10 px-3 py-2 text-[15px] text-error">
               {error}
             </div>
           )}
@@ -153,10 +153,10 @@ export default function NewSessionPage() {
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-muted">
+      <dt className="text-[13px] font-semibold uppercase tracking-[0.06em] text-text-muted">
         {label}
       </dt>
-      <dd className="mt-1.5 text-[14px]">{children}</dd>
+      <dd className="mt-1.5 text-[16px]">{children}</dd>
     </div>
   );
 }

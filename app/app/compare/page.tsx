@@ -132,12 +132,12 @@ export default async function ComparePage({ searchParams }: PageProps) {
               max={0.95}
               step={0.05}
               defaultValue={threshold}
-              className="w-24 rounded-[var(--radius-button)] border border-border bg-bg px-3 py-2 text-[14px] text-text focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+              className="w-24 rounded-[var(--radius-button)] border border-border bg-bg px-3 py-2 text-[16px] text-text focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
             />
           </FieldLabel>
           <button
             type="submit"
-            className="inline-flex h-10 items-center justify-center rounded-[var(--radius-button)] bg-accent px-5 text-[14px] font-medium text-white transition-colors hover:bg-accent-hover"
+            className="inline-flex h-10 items-center justify-center rounded-[var(--radius-button)] bg-accent px-5 text-[16px] font-medium text-white transition-colors hover:bg-accent-hover"
           >
             Compare
           </button>
@@ -145,14 +145,14 @@ export default async function ComparePage({ searchParams }: PageProps) {
       </Card>
 
       {error && (
-        <div className="mb-6 rounded-[var(--radius-card)] border border-error/30 bg-error/10 px-4 py-3 text-[13.5px] text-error">
+        <div className="mb-6 rounded-[var(--radius-card)] border border-error/30 bg-error/10 px-4 py-3 text-[15.5px] text-error">
           {error}
         </div>
       )}
 
       {!a || !b
         ? !error && (
-            <p className="text-[13.5px] text-text-muted">
+            <p className="text-[15.5px] text-text-muted">
               Pick two sessions and click Compare.
             </p>
           )
@@ -180,7 +180,7 @@ export default async function ComparePage({ searchParams }: PageProps) {
 function FieldLabel({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.06em] text-text-muted">
+      <span className="mb-1.5 block text-[13px] font-semibold uppercase tracking-[0.06em] text-text-muted">
         {label}
       </span>
       {children}
@@ -204,7 +204,7 @@ function SessionPicker({
       <select
         name={name}
         defaultValue={value ?? ""}
-        className="w-full rounded-[var(--radius-button)] border border-border bg-bg px-3 py-2 text-[14px] text-text focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+        className="w-full rounded-[var(--radius-button)] border border-border bg-bg px-3 py-2 text-[16px] text-text focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
       >
         <option value="" disabled>
           Pick a session…
@@ -231,23 +231,23 @@ function Bucket({
   return (
     <Card as="section" className="px-5 py-5">
       <h2 className="mb-3 flex items-baseline justify-between gap-3">
-        <span className="text-[13.5px] font-semibold text-text leading-tight">
+        <span className="text-[15.5px] font-semibold text-text leading-tight">
           {heading}
         </span>
         <StatPill tone={tone}>{items.length}</StatPill>
       </h2>
       {items.length === 0 ? (
-        <p className="text-[12px] text-text-subtle">— none —</p>
+        <p className="text-[14px] text-text-subtle">— none —</p>
       ) : (
         <ul className="space-y-1.5">
           {items.map((m) => (
             <li
               key={m.id}
-              className="rounded-[var(--radius-button)] bg-surface-2 px-2.5 py-2 text-[12.5px] leading-snug"
+              className="rounded-[var(--radius-button)] bg-surface-2 px-2.5 py-2 text-[14.5px] leading-snug"
             >
               <div className="font-medium text-text">{m.title}</div>
               {m.category && (
-                <div className="mt-0.5 text-[11px] text-text-subtle">{m.category}</div>
+                <div className="mt-0.5 text-[13px] text-text-subtle">{m.category}</div>
               )}
             </li>
           ))}

@@ -64,7 +64,7 @@ export default async function SessionDetailPage({
         }
         title={session.name}
         description={
-          <code className="font-mono text-[12px] text-text-subtle">{session.id}</code>
+          <code className="font-mono text-[14px] text-text-subtle">{session.id}</code>
         }
       />
 
@@ -88,7 +88,7 @@ export default async function SessionDetailPage({
             name="q"
             defaultValue={term ?? ""}
             placeholder="Search memories in this session…"
-            className="w-full rounded-[var(--radius-button)] border border-border bg-surface pl-10 pr-3.5 py-2.5 text-[14px] text-text placeholder:text-text-subtle focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30 transition-colors"
+            className="w-full rounded-[var(--radius-button)] border border-border bg-surface pl-10 pr-3.5 py-2.5 text-[16px] text-text placeholder:text-text-subtle focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30 transition-colors"
           />
         </div>
       </form>
@@ -104,7 +104,7 @@ export default async function SessionDetailPage({
         />
       ) : (
         <>
-          <div className="mb-3 text-[12.5px] text-text-subtle">
+          <div className="mb-3 text-[14.5px] text-text-subtle">
             {rows.length} memor{rows.length === 1 ? "y" : "ies"}
             {term ? ` matching "${term}"` : ""}
           </div>
@@ -112,7 +112,7 @@ export default async function SessionDetailPage({
             {rows.map((m) => (
               <Card as="li" key={m.id} className="px-5 py-4">
                 <div className="flex items-start justify-between gap-3">
-                  <h2 className="font-medium text-text text-[15px] leading-snug">
+                  <h2 className="font-medium text-text text-[17px] leading-snug">
                     {m.title}
                   </h2>
                   {m.category && (
@@ -122,7 +122,7 @@ export default async function SessionDetailPage({
                   )}
                 </div>
                 {m.content && (
-                  <p className="mt-2 whitespace-pre-wrap text-[13.5px] text-text-muted leading-relaxed">
+                  <p className="mt-2 whitespace-pre-wrap text-[15.5px] text-text-muted leading-relaxed">
                     {m.content}
                   </p>
                 )}
@@ -131,14 +131,14 @@ export default async function SessionDetailPage({
                     {m.tags.map((t: string) => (
                       <span
                         key={t}
-                        className="inline-flex items-center rounded-[var(--radius-pill)] bg-surface-2 px-2 py-0.5 text-[11.5px] text-text-muted font-mono"
+                        className="inline-flex items-center rounded-[var(--radius-pill)] bg-surface-2 px-2 py-0.5 text-[13.5px] text-text-muted font-mono"
                       >
                         {t}
                       </span>
                     ))}
                   </div>
                 )}
-                <div className="mt-3 text-[12px] text-text-subtle font-mono">
+                <div className="mt-3 text-[14px] text-text-subtle font-mono">
                   {new Date(m.createdAt!).toISOString().slice(0, 16)} UTC
                   {m.localEntryId && <> · local id: {m.localEntryId}</>}
                 </div>

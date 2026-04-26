@@ -78,7 +78,7 @@ export default async function SearchPage({ searchParams }: PageProps) {
         />
       ) : (
         <>
-          <div className="mb-3 text-[12.5px] text-text-subtle">
+          <div className="mb-3 text-[14.5px] text-text-subtle">
             {results.length} match{results.length === 1 ? "" : "es"}
           </div>
           <ul className="space-y-2.5">
@@ -88,16 +88,16 @@ export default async function SearchPage({ searchParams }: PageProps) {
                   {m.sessionId ? (
                     <Link
                       href={`/s/${m.sessionId}`}
-                      className="font-medium text-text text-[14.5px] leading-snug hover:text-accent transition-colors"
+                      className="font-medium text-text text-[16.5px] leading-snug hover:text-accent transition-colors"
                     >
                       {m.title}
                     </Link>
                   ) : (
-                    <span className="font-medium text-text text-[14.5px] leading-snug">
+                    <span className="font-medium text-text text-[16.5px] leading-snug">
                       {m.title}
                     </span>
                   )}
-                  <span className="shrink-0 text-[11px] font-mono text-text-subtle pt-0.5">
+                  <span className="shrink-0 text-[13px] font-mono text-text-subtle pt-0.5">
                     {(m.score ?? 0).toFixed(2)}
                   </span>
                 </div>
@@ -112,13 +112,13 @@ export default async function SearchPage({ searchParams }: PageProps) {
                     </Link>
                   )}
                   {m.category && (
-                    <span className="text-[12px] text-text-subtle">
+                    <span className="text-[14px] text-text-subtle">
                       · {m.category}
                     </span>
                   )}
                 </div>
                 {m.content && (
-                  <p className="mt-2.5 line-clamp-2 whitespace-pre-wrap text-[13.5px] text-text-muted leading-relaxed">
+                  <p className="mt-2.5 line-clamp-2 whitespace-pre-wrap text-[15.5px] text-text-muted leading-relaxed">
                     {m.content}
                   </p>
                 )}

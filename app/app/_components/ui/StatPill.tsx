@@ -25,7 +25,7 @@ export default function StatPill({
     <span
       className={
         `inline-flex items-center gap-1 rounded-[var(--radius-pill)] border ` +
-        `px-2.5 py-0.5 text-[12px] font-medium leading-none ` +
+        `px-2.5 py-0.5 text-[14px] font-medium leading-none ` +
         `${tones[tone]} ${className}`
       }
     >

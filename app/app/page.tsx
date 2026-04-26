@@ -41,15 +41,9 @@ export default async function SessionsPage() {
           </>
         }
         actions={
-          <>
-            <NavLink href="/search">Search</NavLink>
-            <NavLink href="/compare">Compare</NavLink>
-            <NavLink href="/stats">Stats</NavLink>
-            <NavLink href="/gotchas">Gotchas</NavLink>
-            <NavLink href="/new" primary>
-              + New session
-            </NavLink>
-          </>
+          <NavLink href="/new" primary>
+            + New session
+          </NavLink>
         }
       />
 
@@ -73,7 +67,7 @@ export default async function SessionsPage() {
                     {s.memoryCount} memor{s.memoryCount === 1 ? "y" : "ies"}
                   </StatPill>
                 </div>
-                <div className="mt-1.5 flex items-center gap-2 text-[12px] text-text-subtle">
+                <div className="mt-1.5 flex items-center gap-2 text-[14px] text-text-subtle">
                   <code className="font-mono text-text-muted">{s.id}</code>
                   <span aria-hidden>·</span>
                   <span>last seen {formatDate(s.lastSeen)}</span>
@@ -99,7 +93,7 @@ export default async function SessionsPage() {
           >
             <div>
               <div className="font-medium text-text">Orphaned memories</div>
-              <div className="text-[12px] text-text-subtle">
+              <div className="text-[14px] text-text-subtle">
                 Memories whose session was deleted with the keep-memories option
               </div>
             </div>
@@ -126,7 +120,7 @@ function NavLink({
   primary?: boolean;
 }) {
   const base =
-    "inline-flex items-center h-10 rounded-[var(--radius-button)] px-3.5 text-[13.5px] font-medium transition-colors";
+    "inline-flex items-center h-10 rounded-[var(--radius-button)] px-3.5 text-[15.5px] font-medium transition-colors";
   const cls = primary
     ? `${base} bg-accent text-white hover:bg-accent-hover`
     : `${base} bg-transparent text-text border border-border hover:bg-surface-2 hover:border-border-strong`;

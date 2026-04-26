@@ -98,7 +98,7 @@ export default async function GotchasPage({ searchParams }: PageProps) {
 
       <section className="mb-8">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-[13px] font-semibold uppercase tracking-[0.06em] text-text-muted">
+          <h2 className="text-[15px] font-semibold uppercase tracking-[0.06em] text-text-muted">
             High recurrence
           </h2>
           <StatPill tone="accent">{highRecurrence.length}</StatPill>
@@ -123,16 +123,16 @@ export default async function GotchasPage({ searchParams }: PageProps) {
                     {m.sessionId ? (
                       <Link
                         href={`/s/${m.sessionId}`}
-                        className="text-[15px] font-medium text-text hover:text-accent leading-snug"
+                        className="text-[17px] font-medium text-text hover:text-accent leading-snug"
                       >
                         {m.title}
                       </Link>
                     ) : (
-                      <span className="text-[15px] font-medium text-text leading-snug">
+                      <span className="text-[17px] font-medium text-text leading-snug">
                         {m.title}
                       </span>
                     )}
-                    <div className="mt-1 flex items-center gap-2 text-[12px] text-text-subtle">
+                    <div className="mt-1 flex items-center gap-2 text-[14px] text-text-subtle">
                       {m.sessionName && <span>{m.sessionName}</span>}
                       {m.category && <span>· {m.category}</span>}
                     </div>
@@ -140,7 +140,7 @@ export default async function GotchasPage({ searchParams }: PageProps) {
                   <StatPill tone="accent">×{m.recurrence}</StatPill>
                 </div>
                 {m.content && (
-                  <p className="mt-2 line-clamp-2 whitespace-pre-wrap text-[13px] text-text-muted leading-relaxed">
+                  <p className="mt-2 line-clamp-2 whitespace-pre-wrap text-[15px] text-text-muted leading-relaxed">
                     {m.content}
                   </p>
                 )}
@@ -152,7 +152,7 @@ export default async function GotchasPage({ searchParams }: PageProps) {
 
       <section>
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-[13px] font-semibold uppercase tracking-[0.06em] text-text-muted">
+          <h2 className="text-[15px] font-semibold uppercase tracking-[0.06em] text-text-muted">
             Cross-session lookalikes
           </h2>
           <StatPill tone="warning">{crossSession.rows.length}</StatPill>
@@ -167,18 +167,18 @@ export default async function GotchasPage({ searchParams }: PageProps) {
             {crossSession.rows.map((c) => (
               <Card as="li" key={c.id} className="px-5 py-4">
                 <div className="flex items-start justify-between gap-3">
-                  <span className="text-[15px] font-medium text-text leading-snug">
+                  <span className="text-[17px] font-medium text-text leading-snug">
                     {c.title}
                   </span>
                   <StatPill tone="warning">{c.session_count} sessions</StatPill>
                 </div>
                 {c.similar_titles && c.similar_titles.length > 0 && (
-                  <div className="mt-2 text-[12.5px] text-text-muted">
+                  <div className="mt-2 text-[14.5px] text-text-muted">
                     Also seen as:{" "}
                     {c.similar_titles.slice(0, 3).map((t, i) => (
                       <span key={t}>
                         {i > 0 && ", "}
-                        <code className="font-mono text-[12px]">{t}</code>
+                        <code className="font-mono text-[14px]">{t}</code>
                       </span>
                     ))}
                     {c.similar_titles.length > 3 && (

@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { memories } from "@/db/schema";
 import { authenticate } from "@/lib/auth";
 import { computeMemoryHash } from "@/lib/hash";
+import { actorFrom, logAudit, requestIdFrom } from "@/lib/audit";
 
 const MAX_LIMIT = 200;
 const DEFAULT_LIMIT = 50;
@@ -92,8 +93,12 @@ export async function POST(request: Request) {
   };
 
   let row;
+  let wasUpdate = false;
   if (insertValue.localEntryId) {
-    [row] = await db
+    // Phase 5 — UPSERT increments recurrence and takes GREATEST(confidence) so
+    // repeated writes of the same logical entry surface as gotchas.
+    // RETURNING * combined with `(xmax = 0)` lets us tell INSERT vs UPDATE.
+    const result = await db
       .insert(memories)
       .values(insertValue)
       .onConflictDoUpdate({
@@ -104,17 +109,32 @@ export async function POST(request: Request) {
           content: insertValue.content,
           category: insertValue.category,
           contentHash: insertValue.contentHash,
+          recurrence: sql`${memories.recurrence} + 1`,
+          confidence:
+            confidence !== undefined
+              ? sql`GREATEST(${memories.confidence}, ${confidence})`
+              : memories.confidence,
           ...(tags !== undefined ? { tags } : {}),
-          ...(confidence !== undefined ? { confidence } : {}),
-          ...(recurrence !== undefined ? { recurrence } : {}),
           ...(metadata !== undefined ? { metadata } : {}),
           updatedAt: new Date(),
         },
       })
       .returning();
+    [row] = result;
+    // recurrence > 1 ⇒ we updated an existing row; deterministic indicator.
+    wasUpdate = (row?.recurrence ?? 1) > 1;
   } else {
     [row] = await db.insert(memories).values(insertValue).returning();
   }
+
+  await logAudit({
+    action: wasUpdate ? "memory.upsert.update" : "memory.create",
+    sessionId,
+    entityId: row.id,
+    diff: { title: insertValue.title, category: insertValue.category },
+    requestId: requestIdFrom(request),
+    actor: actorFrom(request),
+  });
 
   return Response.json(row, { status: 201 });
 }

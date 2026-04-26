@@ -1,6 +1,7 @@
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { memories, sessions } from "@/db/schema";
+import { actorFrom, logAudit, requestIdFrom } from "@/lib/audit";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -51,6 +52,20 @@ export async function DELETE(request: Request, { params }: Params) {
   if (deleted.length === 0) {
     return Response.json({ error: "session not found" }, { status: 404 });
   }
+
+  await logAudit({
+    action: "session.delete",
+    sessionId: null, // session row is gone; setting null avoids FK violation
+    diff: {
+      session_id: deleted[0].id,
+      session_name: deleted[0].name,
+      memories_deleted: memoriesDeleted,
+      memories_kept: withMemories ? 0 : count,
+      with_memories: withMemories,
+    },
+    requestId: requestIdFrom(request),
+    actor: actorFrom(request),
+  });
 
   return Response.json({
     deleted: deleted[0].id,

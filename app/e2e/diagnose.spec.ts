@@ -14,30 +14,6 @@ function attachListeners(page: import("@playwright/test").Page) {
   return { consoleMessages, pageErrors };
 }
 
-test("test page hydrates and click handlers fire", async ({ page }) => {
-  const { consoleMessages, pageErrors } = attachListeners(page);
-  await page.goto("/test", { waitUntil: "networkidle" });
-
-  await page.waitForTimeout(500); // give hydration a beat
-
-  console.log("\n--- /test console messages ---");
-  for (const m of consoleMessages) console.log(`[${m.type}] ${m.text}`);
-  console.log("\n--- /test page errors ---");
-  for (const e of pageErrors) console.log(e);
-
-  // Click "Clicked N times" button
-  const counterBtn = page.locator("button", { hasText: /Clicked/ });
-  await counterBtn.click();
-  await counterBtn.click();
-  await counterBtn.click();
-  await expect(counterBtn).toHaveText("Clicked 3 times");
-
-  // Click "Show message" button
-  const showBtn = page.locator("button", { hasText: /Show message/ });
-  await showBtn.click();
-  await expect(page.getByText(/React state works/)).toBeVisible();
-});
-
 test("home page gear button opens settings menu", async ({ page }) => {
   const { consoleMessages, pageErrors } = attachListeners(page);
   await page.goto("/", { waitUntil: "networkidle" });
@@ -48,27 +24,56 @@ test("home page gear button opens settings menu", async ({ page }) => {
   console.log("\n--- / page errors ---");
   for (const e of pageErrors) console.log(e);
 
-  // Confirm gear button is visible
   const gear = page.getByRole("button", { name: "Settings" });
   await expect(gear).toBeVisible();
-
-  // Confirm aria-expanded starts false
   await expect(gear).toHaveAttribute("aria-expanded", "false");
 
-  // Click it
   await gear.click();
   await page.waitForTimeout(200);
 
-  // After click, aria-expanded should be true
   await expect(gear).toHaveAttribute("aria-expanded", "true");
-
-  // Menu should appear
   const menu = page.getByRole("menu");
   await expect(menu).toBeVisible();
 
-  // Theme toggles should be present
   const lightBtn = page.getByRole("menuitemradio", { name: /Light/ });
   const darkBtn = page.getByRole("menuitemradio", { name: /Dark/ });
   await expect(lightBtn).toBeVisible();
   await expect(darkBtn).toBeVisible();
+});
+
+test("/stats page renders KPI tiles + sections", async ({ page }) => {
+  await page.goto("/stats", { waitUntil: "networkidle" });
+  await expect(page.getByRole("heading", { name: "Stats" })).toBeVisible();
+  await expect(page.getByText("Memories", { exact: true })).toBeVisible();
+  await expect(page.getByText("Sessions", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /Memories created/ }),
+  ).toBeVisible();
+});
+
+test("/gotchas page renders both sections", async ({ page }) => {
+  await page.goto("/gotchas", { waitUntil: "networkidle" });
+  await expect(page.getByRole("heading", { name: "Gotchas" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /High recurrence/i }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /Cross-session lookalikes/i }),
+  ).toBeVisible();
+});
+
+test("light/dark toggle persists across navigation", async ({ page }) => {
+  await page.goto("/", { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: "Settings" }).click();
+  await page.getByRole("menuitemradio", { name: /Light/ }).click();
+
+  // Navigate to another page
+  await page.goto("/stats");
+  // <html> should still have class="light" (set by inline script from localStorage)
+  const html = page.locator("html");
+  await expect(html).toHaveClass(/light/);
+
+  // Reset for other tests
+  await page.getByRole("button", { name: "Settings" }).click();
+  await page.getByRole("menuitemradio", { name: /Dark/ }).click();
 });

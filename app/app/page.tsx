@@ -44,6 +44,8 @@ export default async function SessionsPage() {
           <>
             <NavLink href="/search">Search</NavLink>
             <NavLink href="/compare">Compare</NavLink>
+            <NavLink href="/stats">Stats</NavLink>
+            <NavLink href="/gotchas">Gotchas</NavLink>
             <NavLink href="/new" primary>
               + New session
             </NavLink>

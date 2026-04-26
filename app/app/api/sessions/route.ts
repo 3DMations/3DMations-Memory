@@ -2,6 +2,7 @@ import { desc } from "drizzle-orm";
 import { db } from "@/db";
 import { sessions } from "@/db/schema";
 import { newBearerToken, newSessionId, sha256 } from "@/lib/crypto";
+import { actorFrom, logAudit, requestIdFrom } from "@/lib/audit";
 
 export async function POST(request: Request) {
   let body: unknown;
@@ -31,6 +32,14 @@ export async function POST(request: Request) {
       name: sessions.name,
       createdAt: sessions.createdAt,
     });
+
+  await logAudit({
+    action: "session.create",
+    sessionId: row.id,
+    diff: { name: row.name },
+    requestId: requestIdFrom(request),
+    actor: actorFrom(request),
+  });
 
   return Response.json(
     {

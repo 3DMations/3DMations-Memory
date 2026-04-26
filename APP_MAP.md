@@ -355,11 +355,36 @@ GIN trigram indexes do the heavy lifting; large headroom against the seal.
 
 **New tests:** `__tests__/scrubber.test.ts` (12 patterns + false-positive guards + multi-line PEM + payload helper), `__tests__/memories-hash.test.ts` (server-side compute, client-hash ignored, UPSERT recompute), `__tests__/verify.test.ts` (auth gate + drift induction via direct SQL UPDATE).
 
-## Out of scope (per plan)
+## Phase 4 — Observable (sealed 2026-04-26)
 
-| Phase | Adds | Touches APP_MAP |
-|-------|------|-----------------|
-| 4-5   | Self-improvement loops | In-app only, no new containers; flips `AI_FEATURES_ENABLED=true` for real use |
+**Schema:** `audit_log` table (BIGSERIAL pk, FK to sessions ON DELETE SET NULL, action, entity_id, diff JSONB, request_id, actor, created_at). Indexes on `(session_id, created_at DESC)` and `(action, created_at DESC)`. Applied via direct SQL — drizzle-kit push has the same `schema_version` drop blocker noted in Phase 3 §gotcha 3.
+
+**Audit logging:** `app/lib/audit.ts` exposes `logAudit({action, sessionId, entityId, diff, requestId, actor})` — fire-and-forget, errors logged to console. Wired into POST /api/sessions, POST /api/memories (both create + UPSERT update), DELETE /api/sessions/[id]. Actor pulled from `Tailscale-User-Login` header.
+
+**Structured request log:** `app/proxy.ts` (Next.js 16 renamed from `middleware.ts`). Emits single-line JSON to stdout for every `/api/*` request: `{ts, request_id, method, path, query, actor, duration_ms}`. Generates `x-request-id` if missing.
+
+**Admin endpoint:** `GET /api/admin/logs?limit=N` (default 100, max 500). Tailscale-identity gated via `requireAdmin`. Returns `{count, limit, logs[]}`.
+
+**Stats page:** `/stats` — KPIs (memories, sessions, unhashed legacy), 30-day sparkline, top 10 tags, top 10 most-recurrent memories, last 5 sessions.
+
+## Phase 5 — Self-Improving (sealed 2026-04-26)
+
+**UPSERT change:** POST /api/memories conflict path now does `recurrence = memories.recurrence + 1` and `confidence = GREATEST(memories.confidence, EXCLUDED.confidence)`. Repeated writes of the same `local_entry_id` accumulate recurrence; confidence is monotonic non-decreasing. Audit row distinguishes `memory.create` vs `memory.upsert.update`.
+
+**Gotchas API + page:** `GET /api/memories/gotchas?min=N` returns `{threshold, high_recurrence[], cross_session[]}`. Cross-session bucket finds title pairs across sessions with trigram similarity > 0.5. `/gotchas` page renders both sections.
+
+**AI features (gated on `AI_FEATURES_ENABLED=true`):**
+- `POST /api/gotchas/digest` — Ollama summarizes recurring memories into a markdown digest. Admin-gated via Tailscale-identity. Returns 503 when AI features disabled.
+- `POST /api/memories/[id]/promote` — Ollama formats a single memory into a Claude Code skill markdown stub (returned as text; hub does NOT write to user filesystem).
+
+**Tests added:** audit-log (3), admin-logs (3), recurrence (2), gotchas (2). Total 61/61 vitest cases across 15 suites. Playwright diagnose.spec.ts covers gear menu + /stats + /gotchas + theme persistence (4/4 pass).
+
+**Production-mode shift (was Phase 3 follow-up, sealed during UI Polish 2026-04-26):** Compose `app` service runs `pnpm build && pnpm start` instead of `pnpm dev`. Tailscale Serve doesn't proxy WebSocket upgrades; Next.js dev-mode HMR socket failed in a loop and prevented React hydration site-wide. Production build has no HMR socket. Debug profile keeps dev mode for HMR-friendly local-loopback iteration.
+
+## Out of scope (Phase 6+, only build if triggered by usage)
+
+Per plan: weekly digest scheduling, embedding-based dedup, multi-user RBAC,
+Caddy fallback for non-tailnet access, mobile UI work. None planned.
 
 This file MUST be updated at the seal of each phase.
 

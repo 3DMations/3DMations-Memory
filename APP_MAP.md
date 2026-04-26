@@ -1,8 +1,16 @@
 # APP_MAP — 3DMations Memory Hub
 
-**Last updated:** 2026-04-25 (Phase 2 sealed — global search + session compare)
+**Last updated:** 2026-04-26 (Phases 0–5 sealed; production build live on tailnet; full test suites green)
 **Stack version:** v4.3
-**Authority:** This file is the single source of truth for every wire/connection in the running hub. Update it at the seal of each phase.
+**Authority:** This file is the single source of truth for every wire/connection in the running hub. Update it at the seal of each phase. Per-phase seal records are preserved in chronological sections at the bottom — those are point-in-time and should not be edited retroactively.
+
+## Test status (2026-04-26 audit)
+
+| Suite | Count | Result |
+|---|---|---|
+| Vitest (unit + API contract, in-container) | 15 suites · 61 cases | **61/61 passing** |
+| Playwright (browser E2E, against tailnet URL) | 7 cases | **7/7 passing** |
+| Cucumber BDD (HTTP behavior, against tailnet URL) | 3 scenarios · 11 steps | **11/11 passing** |
 
 ---
 
@@ -12,54 +20,166 @@ The Hub is a single-user, multi-machine memory store for Claude Code sessions. I
 
 ---
 
-## Phase 0 — what is wired today
+## C4 Diagrams
 
-All wires below are live and verified by `curl` / `psql` / `docker exec` as of 2026-04-24.
+Three layers, top-down. Mermaid syntax — renders inline on GitHub.
 
+### Level 1 — System Context
+
+Who uses the hub and what external systems it touches.
+
+```mermaid
+flowchart LR
+    User["👤 Hub admin<br/><sub>3DMations@github</sub>"]
+    Sessions["🤖 Claude Code sessions<br/><sub>across 5 tailnet machines</sub>"]
+    Hub(("⛁ Memory Hub<br/><sub>hub.tail1e2290.ts.net</sub>"))
+    Ollama["🧠 jarvis-ollama<br/><sub>OPS-owned · qwen3.6:35b</sub>"]
+    Tailnet{{"🔒 Tailscale tailnet<br/><sub>tail1e2290.ts.net</sub>"}}
+    Hub -.HTTPS via.- Tailnet
+    User -- "browses dashboard, runs /verify" --> Tailnet
+    Sessions -- "POST /api/memories<br/>GET /api/memories" --> Tailnet
+    Tailnet --> Hub
+    Hub -- "OpenAI-compat /v1/chat<br/>(AI features only)" --> Ollama
+    style Hub fill:#6366f1,stroke:#4338ca,color:#fff
 ```
-                                   HOST: aiwork-Legion
- ┌──────────────────────────────────────────────────────────────────────────┐
- │                                                                          │
- │   Browser / curl ──HTTP──▶ 127.0.0.1:3000  ──┐                           │
- │                                              │                           │
- │   bind mounts:                               │   network: hub-internal   │
- │   ./app           ──▶ hub-app:/app           ▼                           │
- │   hub-node-modules──▶ hub-app:/app/node_modules    ┌──────────────────┐  │
- │   hub-next-cache  ──▶ hub-app:/app/.next     ┌────▶│  hub-app         │  │
- │                                              │     │  Next.js 16.2.4  │  │
- │                                              │     │  React 19.2.4    │  │
- │                                              │     │  Turbopack dev   │  │
- │                                              │     │  TS 5.9.3        │  │
- │                                              │     └────┬─────────────┘  │
- │                                              │          │                │
- │                                              │          │ DATABASE_URL   │
- │                                              │          ▼                │
- │   volume: hub-db-data                        │     ┌──────────────────┐  │
- │   ──▶ /var/lib/postgresql (PG18 root)        │     │  hub-db          │  │
- │                                              └────▶│  postgres:18     │  │
- │                                                    │  hub@memories    │  │
- │                                                    │  port 5432       │  │
- │                                                    └──────────────────┘  │
- │                                                                          │
- │                              network: jarvis-internal (external)         │
- │                                              ┌──────────────────┐        │
- │                                       wired  │  jarvis-ollama   │        │
- │                                  AI_FEATURES │  qwen3.6:35b     │        │
- │                                  _ENABLED=  ─┤  port 11434      │        │
- │                                  false       │  (OPS-owned)     │        │
- │                                              └──────────────────┘        │
- └──────────────────────────────────────────────────────────────────────────┘
+
+### Level 2 — Container
+
+Deployable units inside the hub stack.
+
+```mermaid
+flowchart TB
+    subgraph Tailnet["Tailscale tailnet (HTTPS-only ingress)"]
+        Client["📱 Tailnet machine"]
+    end
+    subgraph HubHost["Host: aiwork-legion (Linux/Docker)"]
+        TS["📡 hub-ts<br/>tailscale/tailscale<br/><sub>tag:hub · sidecar</sub>"]
+        App["🖥 hub-app<br/>Next.js 16 · prod build<br/><sub>pnpm start, no host port</sub>"]
+        DB[("🗄 hub-db<br/>postgres:18-alpine<br/><sub>memories DB</sub>")]
+    end
+    subgraph OPS["3DMations-OPS stack (separate compose)"]
+        Ollama["🧠 jarvis-ollama"]
+    end
+    Client -- "wss://hub.tail1e2290.ts.net" --> TS
+    TS -- "shared netns<br/>127.0.0.1:3000" --> App
+    App -- "db:5432<br/>(hub-internal)" --> DB
+    App -. "jarvis-ollama:11434<br/>(jarvis-internal, AI flag-gated)" .-> Ollama
+    TS -. joins .- HubInternal[(hub-internal)]
+    TS -. joins .- JarvisInternal[(jarvis-internal · external)]
+    style App fill:#6366f1,stroke:#4338ca,color:#fff
+    style TS fill:#10b981,stroke:#059669,color:#fff
+    style DB fill:#0ea5e9,stroke:#0284c7,color:#fff
+```
+
+### Level 3 — Component (inside hub-app)
+
+Major modules. Server components (RSC) read drizzle directly; route handlers under `/api/*` go through `lib/`.
+
+```mermaid
+flowchart LR
+    subgraph FE["Frontend (Next.js App Router)"]
+        Pages["📄 8 pages<br/>/, /s/[id], /new,<br/>/search, /compare,<br/>/orphaned, /stats, /gotchas"]
+        UI["🧱 _components/ui/*<br/>Card, Button, IconButton,<br/>StatPill, PageHeader,<br/>SettingsMenu, ThemeProvider"]
+    end
+    subgraph API["API routes (/api/*)"]
+        Health["/health<br/>/ai/health"]
+        Sessions["/sessions<br/>/sessions/[id]"]
+        Memories["/memories<br/>/memories/search<br/>/memories/compare<br/>/memories/verify<br/>/memories/gotchas<br/>/memories/[id]/promote"]
+        Admin["/admin/logs<br/>/gotchas/digest"]
+    end
+    subgraph Lib["lib/"]
+        Auth["auth.ts<br/><sub>bearer + sha256</sub>"]
+        Crypto["crypto.ts<br/><sub>token gen, sha256, safeEqualHex</sub>"]
+        Hash["hash.ts<br/><sub>canonicalize + sha256 of memory</sub>"]
+        TSAuth["tailscale-identity.ts<br/><sub>requireAdmin via TS-User-Login</sub>"]
+        Audit["audit.ts<br/><sub>logAudit fire-and-forget</sub>"]
+        Ollama["ollama.ts<br/><sub>OpenAI-compat client</sub>"]
+    end
+    subgraph DB["db/"]
+        Schema["schema.ts<br/><sub>sessions, memories, audit_log</sub>"]
+        Index["index.ts<br/><sub>drizzle pool</sub>"]
+    end
+    Proxy["⚙ proxy.ts<br/><sub>per-request JSON log<br/>(was middleware.ts)</sub>"]
+    Pages --> UI
+    Pages -- "RSC reads" --> Schema
+    API --> Proxy
+    Sessions --> Auth
+    Memories --> Auth
+    Memories --> Hash
+    Memories --> Audit
+    Sessions --> Audit
+    Admin --> TSAuth
+    Memories --> TSAuth
+    Admin --> Ollama
+    Schema --> Index
 ```
 
 ---
 
-## Containers (live)
+## Current topology (as of 2026-04-26 — Phase 5 sealed)
 
-| Container  | Image                  | Owner   | Networks                          | Host port           | Internal | Purpose |
-|------------|------------------------|---------|-----------------------------------|---------------------|----------|---------|
-| `hub-app`  | `3dmations-memory-app` | hub     | `hub-internal`, `jarvis-internal` | `127.0.0.1:3000`    | 3000     | Next.js dev server (frontend + API routes) |
-| `hub-db`   | `postgres:18-alpine`   | hub     | `hub-internal`                    | (none — internal)   | 5432     | Memory store |
-| `jarvis-ollama` | `ollama/ollama` | OPS     | `jarvis-internal`                 | `127.0.0.1:11434`   | 11434    | LLM inference (qwen3.6:35b). Reused, not duplicated. |
+The Phase 0 ASCII topology in git history is now superseded; here is the live wiring.
+
+```
+                              Tailscale tailnet
+                              ─────────────────
+   🤖 Claude Code session ─── HTTPS:443 ───▶ hub.tail1e2290.ts.net
+   📱 Hub admin browser                                │
+                                                       ▼
+   ┌─── HOST: aiwork-legion ──────────────────────────────────────────────┐
+   │                                                                      │
+   │  ┌───────────────────────┐     network: hub-internal                 │
+   │  │ hub-ts (sidecar)      │     network: jarvis-internal (external)   │
+   │  │ tailscale/tailscale   │                                            │
+   │  │ tag:hub               │     volume: hub-ts-state                  │
+   │  │ Tailscale Serve       │      ─▶ /var/lib/tailscale                │
+   │  │  443→127.0.0.1:3000   │                                            │
+   │  └─────────┬─────────────┘                                            │
+   │            │ network_mode: service:ts-hub                            │
+   │            │ (shared netns)                                           │
+   │            ▼                                                          │
+   │  ┌───────────────────────┐                                            │
+   │  │ hub-app               │     bind mount: ./app ─▶ /app             │
+   │  │ Next.js 16.2.4 PROD   │     vol: hub-node-modules ─▶ /app/node_…  │
+   │  │ (pnpm start)          │     vol: hub-next-cache  ─▶ /app/.next    │
+   │  │ React 19.2.4          │     ro mount: ./.claude/skills ─▶         │
+   │  │ TS 5.9.3              │              /.claude/skills              │
+   │  └────────┬──────────────┘                                            │
+   │           │ DATABASE_URL                                              │
+   │           ▼                                                            │
+   │  ┌───────────────────────┐     volume: hub-db-data                   │
+   │  │ hub-db                │      ─▶ /var/lib/postgresql               │
+   │  │ postgres:18-alpine    │     (PG18 root — NOT /data)               │
+   │  │ memories DB           │                                            │
+   │  │ tables: sessions,     │                                            │
+   │  │  memories, audit_log, │                                            │
+   │  │  schema_version       │                                            │
+   │  └───────────────────────┘                                            │
+   │                                                                      │
+   │     network: jarvis-internal (external — owned by 3DMations-OPS)    │
+   │                       ┌──────────────────┐                           │
+   │      AI_FEATURES_     │ jarvis-ollama    │                           │
+   │      ENABLED-gated  ◄─┤ qwen3.6:35b      │  reused, not duplicated  │
+   │                       │ port 11434       │                           │
+   │                       └──────────────────┘                           │
+   └──────────────────────────────────────────────────────────────────────┘
+
+Debug profile (emergency local-only access — operator runs `stop app` first):
+   browser → 127.0.0.1:${APP_PORT} → hub-app-debug (pnpm dev, HMR)
+   docker compose --profile debug up -d app-debug
+```
+
+---
+
+## Containers (live, post-Phase 5)
+
+| Container  | Image                          | Owner   | Networks                          | Host port      | Internal | Purpose |
+|------------|--------------------------------|---------|-----------------------------------|----------------|----------|---------|
+| `hub-ts`   | `tailscale/tailscale:latest`   | hub     | `hub-internal`, `jarvis-internal` | (none — tailnet only) | 443/HTTPS | Tailscale Serve sidecar. Hostname `hub`, tag `tag:hub`. Terminates HTTPS, proxies to app via shared netns. |
+| `hub-app`  | `3dmations-memory-app`         | hub     | (inherits via `network_mode: service:ts-hub`) | (none) | 3000  | Next.js 16 production build (`pnpm start`). Frontend RSC + `/api/*` routes. |
+| `hub-app-debug` (profile `debug`) | `3dmations-memory-app` | hub | `hub-internal` | `127.0.0.1:${APP_PORT}` | 3000 | Emergency loopback — runs `pnpm dev` with HMR. Mutually exclusive with `hub-app` (shared volumes). |
+| `hub-db`   | `postgres:18-alpine`           | hub     | `hub-internal`                    | (none)         | 5432     | Memory store. PG18 with `pg_trgm`, `uuidv7()` native. |
+| `jarvis-ollama` | `ollama/ollama`           | OPS     | `jarvis-internal`                 | `127.0.0.1:11434` | 11434 | LLM inference (qwen3.6:35b). Reused, not managed by this stack. |
 
 `jarvis-ollama` is **not** managed by this project's `docker-compose.yml`; we attach to it by joining `jarvis-internal` as `external: true`. The hub never restarts it.
 
@@ -75,19 +195,22 @@ All wires below are live and verified by `curl` / `psql` / `docker exec` as of 2
 | Volume               | Mounted at                       | Owner    | Purpose |
 |----------------------|----------------------------------|----------|---------|
 | `hub-db-data`        | `hub-db:/var/lib/postgresql`     | hub      | Postgres data root (PG18 layout — NOT `/data`) |
-| `hub-node-modules`   | `hub-app:/app/node_modules`      | hub      | Speeds rebuilds; isolates host from Linux glibc deps |
-| `hub-next-cache`     | `hub-app:/app/.next`             | hub      | Turbopack/dev cache |
-| `./app` (bind)       | `hub-app:/app`                   | host     | Live source mount for dev hot-reload |
+| `hub-node-modules`   | `hub-app:/app/node_modules`      | hub      | Isolates host from Linux glibc deps; preserves install across recreates |
+| `hub-next-cache`     | `hub-app:/app/.next`             | hub      | Production build output (incremental rebuilds) |
+| `hub-ts-state`       | `hub-ts:/var/lib/tailscale`      | hub      | Tailscale node identity / cert state — preserves tagged-device registration across restarts |
+| `./app` (bind)       | `hub-app:/app`                   | host     | Live source mount; production rebuild on container start |
+| `./.claude/skills` (ro bind) | `hub-app:/.claude/skills`| host     | Read-only — exposes hub-scrubber skill to vitest tests inside container |
+| `./tailscale/serve.json` (ro bind) | `hub-ts:/config/serve.json` | host | Version-controlled Tailscale Serve config |
 
 ## Persistent port allocation policy
 
 | Port | Container  | Phase wired | Status   |
 |------|------------|-------------|----------|
-| 3000 | `hub-app`  | 0           | claimed  |
-| 5432 | `hub-db`   | 0           | claimed (internal only — no host binding) |
-| 8443 | `hub-tls`  | 3           | reserved (Caddy or Tailscale-funnel) |
-| 8444 | TBD        | —           | reserved expansion |
-| 8445 | TBD        | —           | reserved expansion |
+| 3000 | `hub-app`  | 0 → modified 3a | container-internal only since 3a (was loopback-bound). Tailnet is the only ingress. |
+| 3000 | `hub-app-debug` | 3a       | host loopback `127.0.0.1:${APP_PORT}` ONLY when `--profile debug` active. |
+| 443  | `hub-ts`   | 3a          | tailnet HTTPS (Tailscale-managed cert). No host binding — reachable only at `hub.tail1e2290.ts.net`. |
+| 5432 | `hub-db`   | 0           | container-internal only — no host binding ever. |
+| 8443 | (deprecated) | —         | Was reserved for `hub-tls` (Caddy/mTLS) in original v4.3 plan. Phase 3a obsoleted this — Tailscale-managed certs replace it. |
 
 Forbidden — owned by other 3DMations stacks: 3001-3011, 3100, 4000, 4001, 5173, 8888, 11434.
 
@@ -117,127 +240,238 @@ User shell
 ### W3 — App boot (compose up)
 ```
 docker compose up -d
-  → starts hub-db
-  → healthcheck: pg_isready -U hub -d memories (every 5s, ≤10 retries)
-  → on healthy: starts hub-app
-  → pnpm dev (next dev --port 3000 --hostname 0.0.0.0)
-  → reads .env (DATABASE_URL composed at runtime, OLLAMA_URL, AUTH_SECRET, AI_FEATURES_ENABLED)
+  → starts hub-db (PG18 health: pg_isready every 5s, ≤10 retries)
+  → starts hub-ts (Tailscale Serve sidecar, registers tag:hub via TS_AUTHKEY)
+  → on db healthy + ts-hub started: starts hub-app
+  → app runs `pnpm build && pnpm start` (production mode — no HMR socket)
+  → reads .env (DATABASE_URL, OLLAMA_URL, AUTH_SECRET, AI_FEATURES_ENABLED, HUB_ADMIN_LOGIN)
+```
+
+### W4 — Claude session writes a memory (POST happy path)
+
+```
+Claude on remote machine (tailnet)
+  → reads .claude/local/hub.env  → HUB_URL, HUB_SESSION, HUB_TOKEN
+  → hub-scrubber skill scans payload  → throws ScrubberError on credential shape
+  → POST https://hub.tail1e2290.ts.net/api/memories
+       Authorization: Bearer <token>
+       Content-Type: application/json
+       body: { session_id, title, content, category, local_entry_id?, … }
+  → Tailscale Serve injects Tailscale-User-Login (tagged-device callers don't get this)
+  → app/proxy.ts emits {request_id, method, path, actor, duration_ms} JSON to stdout
+  → app/api/memories/route.ts (POST handler)
+       1. authenticate(): bearer.token_hash matches sessions.token_hash, token's session_id == body.session_id
+       2. compute server-side content_hash = sha256(canonicalize({title, content, category}))
+       3. INSERT (or UPSERT on local_entry_id) — UPSERT path increments recurrence + GREATEST(confidence)
+       4. logAudit(memory.create | memory.upsert.update) → audit_log row
+       5. respond 201 { row }
+```
+
+### W5 — Admin verifies content-hash drift
+
+```
+Admin browser (tailnet, logged in as HUB_ADMIN_LOGIN)
+  → GET https://hub.tail1e2290.ts.net/api/memories/verify
+  → Tailscale Serve injects Tailscale-User-Login
+  → app/api/memories/verify/route.ts
+       1. requireAdmin() compares header (case-insensitive) to HUB_ADMIN_LOGIN
+       2. SELECT all memories
+       3. for each: recompute hash, compare to stored content_hash
+       4. respond { checked, ok, unhashed, drift[] } — 200 if drift=[], 409 otherwise
+```
+
+### W6 — Stats / Gotchas dashboard render (RSC)
+
+```
+Admin browser
+  → GET https://hub.tail1e2290.ts.net/stats  (or /gotchas)
+  → Tailscale Serve → hub-ts → 127.0.0.1:3000 (shared netns)
+  → Next.js production server renders RSC
+  → app/app/stats/page.tsx executes drizzle queries directly (bypassing /api/*)
+       SELECT count(memories), count(sessions), count(NULL hashes)
+       SELECT date_trunc('day', …) GROUP BY for 30-day sparkline
+       SELECT t, COUNT(*) FROM memories, UNNEST(tags) GROUP BY t ORDER BY DESC LIMIT 10
+       SELECT * FROM memories WHERE recurrence >= 2 ORDER BY recurrence DESC LIMIT 10
+       SELECT recent sessions LIMIT 5
+  → returns rendered HTML
+```
+
+### W7 — Ollama digest (Phase 5, AI flag-gated)
+
+```
+Admin browser or curl
+  → POST https://hub.tail1e2290.ts.net/api/gotchas/digest?min=3
+  → app/api/gotchas/digest/route.ts
+       1. AI_FEATURES_ENABLED check — 503 if false
+       2. requireAdmin(Tailscale-User-Login)
+       3. SELECT memories WHERE recurrence >= 3 (with sessionName join)
+       4. ollama.chat.completions.create({model, messages})
+            → hub-ts netns → jarvis-internal → jarvis-ollama:11434
+       5. respond { digest (markdown), gotcha_count, model }
+```
+
+### W8 — Debug profile (tailnet broken / dev iteration)
+
+```
+Operator on hub-host
+  → docker compose stop app
+  → docker compose --profile debug up -d app-debug
+  → app-debug runs `pnpm dev` with HMR (no Tailscale Serve in path)
+  → browser → http://127.0.0.1:${APP_PORT}
+  → after debugging:
+      docker compose --profile debug down app-debug
+      docker compose up -d app   # back to production tailnet mode
 ```
 
 ---
 
 ## Environment variable flow
 
-`.env` (project root, gitignored) is loaded by both services via `env_file: .env`:
+`.env` (project root, gitignored — `.env.example` is tracked as a template) is loaded by services via `env_file: .env`:
 
-| Var                   | Consumer       | Used for |
-|-----------------------|----------------|----------|
-| `POSTGRES_DB`         | hub-db, hub-app| db name `memories` |
-| `POSTGRES_USER`       | hub-db, hub-app| db user `hub` |
-| `POSTGRES_PASSWORD`   | hub-db, hub-app| db auth (48-hex random) |
-| `DATABASE_URL`        | hub-app        | `postgres://hub:<pw>@db:5432/memories` (composed in compose, not stored verbatim) |
-| `AUTH_SECRET`         | hub-app        | bearer-token signing (Phase 1+) |
-| `OLLAMA_URL`          | hub-app        | `http://jarvis-ollama:11434` (reached over `jarvis-internal`) |
-| `OLLAMA_MODEL`        | hub-app        | `qwen3.6:35b` |
-| `AI_FEATURES_ENABLED` | hub-app        | feature flag — Phase 1.5 wires this |
-| `APP_PORT`            | compose        | host-side port mapping |
-| `DEPLOYMENT_TARGET`   | hub-app        | `local` (Phase 0/1), `lan`/`tailscale` (Phase 3) |
-| `TLS_MODE`            | hub-app        | `none` (Phase 0/1), `caddy`/`tailscale` (Phase 3) |
-
----
-
-## Frontend connections (Phase 0)
-
-| Route          | File                  | Renders                     | Data source |
-|----------------|-----------------------|-----------------------------|-------------|
-| `/`            | `app/app/page.tsx`    | "Hub — Phase 0" landing     | none (static RSC) |
-| `/_next/*`     | (Turbopack)           | dev assets / HMR            | filesystem |
-| `/favicon.ico` | `app/app/favicon.ico` | scaffold default            | filesystem |
-
-No client-side state, no hooks, no API calls yet.
+| Var                   | Consumer       | Phase | Used for |
+|-----------------------|----------------|-------|----------|
+| `POSTGRES_DB`         | hub-db, hub-app| 0     | db name `memories` |
+| `POSTGRES_USER`       | hub-db, hub-app| 0     | db user `hub` |
+| `POSTGRES_PASSWORD`   | hub-db, hub-app| 0     | db auth |
+| `DATABASE_URL`        | hub-app        | 0     | `postgres://hub:<pw>@db:5432/memories` (composed at compose time) |
+| `APP_PORT`            | compose        | 0     | host-side port for the **debug profile only** (production has no host port) |
+| `AUTH_SECRET`         | hub-app        | 1     | session bearer-token signing + admin-token DELETE auth (Phase 1.6) |
+| `OLLAMA_URL`          | hub-app        | 1.5   | `http://jarvis-ollama:11434` (reached over `jarvis-internal`) |
+| `OLLAMA_MODEL`        | hub-app        | 1.5   | `qwen3.6:35b` |
+| `AI_FEATURES_ENABLED` | hub-app        | 1.5/5 | Gates `/api/ai/health`, `/api/gotchas/digest`, `/api/memories/[id]/promote`. Default `false`. |
+| `TS_AUTHKEY`          | hub-ts         | 3a    | Tailscale auth key (reusable + non-ephemeral + `tag:hub`). Used once per fresh container — state then persists in `hub-ts-state` volume. |
+| `HUB_ADMIN_LOGIN`     | hub-app        | 3b    | Tailscale identity authorized for `/api/memories/verify`, `/api/admin/logs`, `/api/gotchas/digest`, `/api/memories/[id]/promote`. Compared case-insensitively. |
 
 ---
 
-## Backend connections (Phase 0)
+## Phase 0 frontend/backend snapshot — superseded
 
-None. `hub-app` has no `/api/*` route handlers yet. The Next.js process can talk to:
-
-- `hub-db` over TCP `db:5432` (resolved via Docker DNS on `hub-internal`) — **wired but unused**
-- `jarvis-ollama` over TCP `jarvis-ollama:11434` (resolved via Docker DNS on `jarvis-internal`) — **wired but unused, gated by `AI_FEATURES_ENABLED=false`**
-
-These will start carrying traffic in Phase 1 and Phase 1.5 respectively.
+The Phase 0 sections (frontend showed only `/` placeholder; backend had zero `/api/*` routes; both `db:5432` and `jarvis-ollama:11434` were wired but unused) are preserved in git history at commit `3dc2882`. Today's complete frontend + API surface is in the **Frontend** and **API routes** tables above.
 
 ---
 
-## Schema (Phase 1 — live)
+## Schema (live — all phases)
 
-`pg_trgm 1.6` extension enabled. PG18 native `uuidv7()` available — verified.
+`pg_trgm 1.6` extension enabled. PG18 native `uuidv7()` available.
 
-| Table            | Columns / notes |
-|------------------|-----------------|
-| `sessions`       | `id` (12-char nanoid PK), `name`, `token_hash` (sha256 hex), `created_at`, `last_seen` |
-| `memories`       | `id` (uuid PK, `default uuidv7()`), `session_id` FK→sessions **ON DELETE SET NULL** (was CASCADE pre-1.6), `local_entry_id`, `title`, `content`, `category`, `tags TEXT[]`, `confidence REAL`, `recurrence INT`, `content_hash`, `metadata JSONB`, `created_at`, `updated_at` |
-| `schema_version` | `version` (PK), `description`, `applied_at` — currently `(1, 'initial schema — PG18 with uuidv7')` |
+| Table            | Phase | Columns / notes |
+|------------------|-------|-----------------|
+| `sessions`       | 1     | `id` (12-char nanoid PK), `name`, `token_hash` (sha256 hex), `created_at`, `last_seen` |
+| `memories`       | 1/3b  | `id` (uuid PK, `default uuidv7()`), `session_id` FK→sessions **ON DELETE SET NULL** (was CASCADE pre-1.6), `local_entry_id`, `title`, `content`, `category`, `tags TEXT[]`, `confidence REAL`, `recurrence INT`, `content_hash` (sha256 hex, server-computed), `metadata JSONB`, `created_at`, `updated_at` |
+| `audit_log`      | 4     | `id` BIGSERIAL PK, `session_id` FK→sessions ON DELETE SET NULL, `action` (TEXT, e.g. `memory.create`), `entity_id` UUID nullable, `diff` JSONB, `request_id`, `actor` (Tailscale-User-Login at write time), `created_at` |
+| `schema_version` | 1     | `version` (PK), `description`, `applied_at` — `(1, 'initial schema — PG18 with uuidv7')`. Manually-managed (not in `db/schema.ts`); reason `drizzle-kit push` requires `--force` to skip drop-prompt. |
 
-Indexes on `memories`:
+**Indexes:**
 - `memories_pkey` (uuid)
-- `idx_memories_session_local_id` UNIQUE partial — `(session_id, local_entry_id) WHERE local_entry_id IS NOT NULL` (drives upsert ON CONFLICT)
-- `idx_memories_title_trgm` GIN — `(title gin_trgm_ops)`
-- `idx_memories_content_trgm` GIN — `(content gin_trgm_ops)`
-- `idx_memories_tags` GIN — `(tags)`
+- `idx_memories_session_local_id` UNIQUE partial — `(session_id, local_entry_id) WHERE local_entry_id IS NOT NULL` (drives UPSERT ON CONFLICT)
+- `idx_memories_title_trgm` / `idx_memories_content_trgm` GIN over `gin_trgm_ops`
+- `idx_memories_tags` GIN over `(tags)`
+- `idx_audit_session` btree `(session_id, created_at DESC)`
+- `idx_audit_action` btree `(action, created_at DESC)`
 
-Drizzle source: `app/db/schema.ts`. Sync via `pnpm drizzle-kit push` (Phase 1) — switch to `generate` + `migrate` in Phase 3.
-Extensions + GIN indexes (out of drizzle-kit's scope) are applied via `app/drizzle/post-push-init.sql`.
+Drizzle source: `app/db/schema.ts`. Schema changes are applied via direct SQL during seal (drizzle-kit push refuses without `--force` when `schema_version` is present, since drizzle-kit doesn't model that table). Extensions + GIN indexes are applied via `app/drizzle/post-push-init.sql`.
 
-## API routes (Phase 1 — live)
+## API routes (live — all phases)
 
-| Method | Path                              | Auth   | Purpose |
-|--------|-----------------------------------|--------|---------|
-| GET    | `/api/health`                     | none   | DB ping + schema version |
-| POST   | `/api/sessions`                   | none   | Create session, return `{id, token}` once |
-| GET    | `/api/sessions`                   | none   | List sessions (no tokens, no hashes) |
-| DELETE | `/api/sessions/:id`               | admin  | `X-Admin-Token: $AUTH_SECRET`; default sets memories' `session_id=NULL`; `?with_memories=true` cascades. 401 / 404 paths covered. |
-| POST   | `/api/memories`                   | bearer | Create or upsert (on `local_entry_id`); token must match `session_id` in body |
-| GET    | `/api/memories?q=&session=&limit=`| bearer | List or trigram-rank by `q` (`title %% q OR content %% q OR ILIKE`); session filter optional |
-| GET    | `/api/memories/search?q=&limit=`  | bearer | Global trigram search across all sessions; results carry `sessionName` for attribution |
-| GET    | `/api/memories/compare?a=&b=&threshold=` | bearer | Three-bucket compare between two sessions: `in_a_only`, `in_both` (similarity > threshold, default 0.4), `in_b_only` |
-| GET    | `/api/ai/health`                  | none   | Ollama reachability behind `AI_FEATURES_ENABLED` flag — 503 when off, 200 with model list when on |
+12 routes total. Auth column legend: `none` = open, `bearer` = session bearer token (`Authorization: Bearer …`), `admin-token` = `X-Admin-Token: $AUTH_SECRET` legacy, `ts-admin` = `Tailscale-User-Login` matches `HUB_ADMIN_LOGIN`.
 
-Auth: bearer token compared via SHA-256 `token_hash` with constant-time equality. Successful auth bumps `sessions.last_seen`. POST `/api/memories` requires the token's session to equal `body.session_id` (403 otherwise).
+| Method | Path                              | Auth        | Phase | Purpose |
+|--------|-----------------------------------|-------------|-------|---------|
+| GET    | `/api/health`                     | none        | 0     | DB ping + schema version |
+| GET    | `/api/ai/health`                  | none        | 1.5   | Ollama reachability behind `AI_FEATURES_ENABLED` — 503 when off, 200 with model list when on |
+| POST   | `/api/sessions`                   | none        | 1     | Create session, return `{id, token}` once + audit row |
+| GET    | `/api/sessions`                   | none        | 1     | List sessions (no tokens, no hashes) |
+| DELETE | `/api/sessions/[id]`              | admin-token | 1.6   | Default sets memories' `session_id=NULL`; `?with_memories=true` cascades. Audit row written. |
+| POST   | `/api/memories`                   | bearer      | 1/3b/5| Create or UPSERT (on `local_entry_id`). Server computes `content_hash`. UPSERT increments `recurrence`, takes `GREATEST(confidence)`. Audit row distinguishes `memory.create` vs `memory.upsert.update`. |
+| GET    | `/api/memories?q=&session=&limit=`| bearer      | 1     | List or trigram-rank by `q`; session filter optional |
+| GET    | `/api/memories/search?q=&limit=`  | bearer      | 2     | Global trigram search across all sessions, with `sessionName` attribution |
+| GET    | `/api/memories/compare?a=&b=&threshold=` | bearer | 2  | Three-bucket compare: `in_a_only`, `in_both` (similarity > threshold), `in_b_only` |
+| GET    | `/api/memories/verify`            | ts-admin    | 3b    | Drift detector: recomputes every memory's `content_hash`, returns `{checked, ok, unhashed, drift[]}`. 200 if clean, 409 if drift, 401/500 on auth fail. |
+| GET    | `/api/memories/gotchas?min=N`     | none        | 5     | Returns `{threshold, high_recurrence[], cross_session[]}`. Cross-session bucket finds title pairs across sessions with trigram similarity > 0.5. |
+| POST   | `/api/memories/[id]/promote`      | ts-admin + AI flag | 5 | Asks Ollama to format a single memory as a Claude Code skill markdown stub. Returns text only — hub does NOT write to user filesystem. 503 when AI disabled. |
+| GET    | `/api/admin/logs?limit=N`         | ts-admin    | 4     | Returns up to N recent `audit_log` rows (default 100, max 500). |
+| POST   | `/api/gotchas/digest?min=N`       | ts-admin + AI flag | 5 | Ollama summarizes recurring memories into markdown digest. 503 when AI disabled. |
 
-## Frontend (Phase 1 — live)
+**Auth notes:**
+- Bearer: SHA-256 `token_hash` compared with constant-time equality. Successful auth bumps `sessions.last_seen`. POST `/api/memories` also requires the token's session to equal `body.session_id` (403 otherwise).
+- ts-admin: `Tailscale-User-Login` header is injected by Tailscale Serve and is spoof-safe (Serve strips inbound copies). Comparison against `HUB_ADMIN_LOGIN` is case-insensitive (since GitHub SSO casing differs from `.env` convention).
+- Sensitive writes (POST, DELETE) emit an `audit_log` row via `app/lib/audit.ts`. Read endpoints don't.
+- `app/proxy.ts` emits a structured JSON request log per `/api/*` request.
 
-| Route        | File                          | Component | Data |
-|--------------|-------------------------------|-----------|------|
-| `/`          | `app/app/page.tsx`            | RSC + client trash button | sessions list with memory counts; nav to Search / Compare / New; orphan-count link |
-| `/s/[id]`    | `app/app/s/[id]/page.tsx`     | RSC       | session detail; `?q=` switches to trigram ranking |
-| `/new`       | `app/app/new/page.tsx`        | client    | POST → `/api/sessions`, displays bearer token once |
-| `/orphaned`  | `app/app/orphaned/page.tsx`   | RSC       | memories with `session_id IS NULL` (after keep-memories deletes) |
-| `/search`    | `app/app/search/page.tsx` + `SearchInput.tsx` | RSC + debounced client input | global trigram + ILIKE search across all sessions; result carries session badge or "orphaned" pill |
-| `/compare`   | `app/app/compare/page.tsx`    | RSC       | two-session picker form + threshold slider; renders `in_A_only` / `in_both` / `in_B_only` columns |
-| (component)  | `app/app/_components/SessionDeleteButton.tsx` | client | trash icon → modal with two explicit buttons (keep-memories vs cascade); admin token cached in `sessionStorage` per tab |
+## Frontend (live — all phases)
 
-Next.js 16 dynamic-route convention: `params` and `searchParams` are awaited Promises (used in `/s/[id]`).
+8 pages. All RSC by default, with `force-dynamic` so they re-read DB on every request. Client interactivity comes from `_components/`.
 
-Schema for Phase 0 placeholder: `app/app/page.tsx.bak` (preserved per Destructive Action Guard, gitignored).
+| Route        | File                                        | Kind   | Data |
+|--------------|---------------------------------------------|--------|------|
+| `/`          | `app/app/page.tsx`                          | RSC    | Sessions list + memory counts; nav to Search/Compare/Stats/Gotchas/New; orphan link if any. |
+| `/s/[id]`    | `app/app/s/[id]/page.tsx`                   | RSC    | Session detail; `?q=` switches to trigram ranking. |
+| `/new`       | `app/app/new/page.tsx`                      | client | Form POSTs `/api/sessions`, displays bearer token once with copy button. |
+| `/orphaned`  | `app/app/orphaned/page.tsx`                 | RSC    | Memories with `session_id IS NULL` (post keep-memories delete). |
+| `/search`    | `app/app/search/page.tsx` + `SearchInput.tsx` | RSC + client input | Global trigram + ILIKE; result carries session badge or "orphaned" pill. Debounced. |
+| `/compare`   | `app/app/compare/page.tsx`                  | RSC    | Two-session picker + threshold; renders `in_A_only` / `in_both` / `in_B_only`. |
+| `/stats`     | `app/app/stats/page.tsx`                    | RSC    | KPIs (memories, sessions, unhashed legacy), 30-day bar sparkline, top tags, top recurrent, recent sessions. |
+| `/gotchas`   | `app/app/gotchas/page.tsx`                  | RSC    | High-recurrence rows (≥3) + cross-session lookalikes (trigram > 0.5 across sessions). |
+
+### Components (`app/app/_components/`)
+
+| Path | Kind | Purpose |
+|---|---|---|
+| `SessionDeleteButton.tsx`     | client | Trash icon → 2-button modal (keep-memories vs cascade). Admin token cached in `sessionStorage`. |
+| `ui/ThemeProvider.tsx`        | client | Pub/sub-based useTheme hook (no Context). Reads/writes localStorage `memory-hub:theme`. |
+| `ui/SettingsMenu.tsx`         | client | Top-right gear icon → dropdown with light/dark toggle. |
+| `ui/Card.tsx`, `Section.tsx`, `Button.tsx`, `IconButton.tsx`, `PageHeader.tsx`, `StatPill.tsx`, `EmptyState.tsx` | shared | Design-token-driven UI primitives. |
+
+### Theme
+
+`app/app/globals.css` defines CSS variables for both modes. `<html class="dark">` (default) or `class="light"`. Inline FOUC-prevention script in `<head>` reads localStorage before first paint.
+
+Next.js 16 dynamic-route convention: `params` and `searchParams` are awaited Promises (used in `/s/[id]`, `/compare`, `/search`, `/gotchas`).
 
 ---
 
-## Tests (Phase 1 — green)
+## Tests (all phases — green)
 
-| Suite | Tests | Coverage |
+### Vitest (15 suites · 61 cases · in-container)
+
+| Suite | Cases | Coverage |
 |-------|-------|----------|
-| `app/__tests__/auth.test.ts`             | 2 | sha256 stability, safeEqualHex incl. malformed-hex rejection |
-| `app/__tests__/sessions.test.ts`         | 4 | POST 201, POST 400 (missing/empty name), GET list (no token leakage) |
-| `app/__tests__/sessions-delete.test.ts`  | 5 | DELETE 401 (no/wrong header), 404 (unknown id), 200 keep-memories (FK SET NULL verified), 200 with_memories (cascade verified) |
-| `app/__tests__/memories.test.ts`         | 7 | POST 401 (no bearer), 401 (bad bearer), 403 (mismatched session), 201 + uuidv7, UPSERT idempotency, GET list scoped, GET trigram-ranked |
-| `app/__tests__/orphaned.test.ts`         | 1 | After keep-memories delete, `/orphaned` SSR includes the surviving title |
-| `app/__tests__/search.test.ts`           | 3 | 401 no bearer; 400 missing/empty `q`; 200 returns multi-session hits with `sessionName` attribution |
-| `app/__tests__/compare.test.ts`          | 3 | 401 no bearer; 200 returns three-bucket structure with overlap; threshold parameter respected (`?threshold=0.1` ⊇ `?threshold=0.9`) |
-| `app/__tests__/ollama.test.ts`           | 1 | `ollamaHealth()` reaches `jarvis-ollama` and returns the configured model in tag list |
-| **total** | **26** | run via `make test` or `docker compose exec app pnpm test` |
+| `auth.test.ts`                | 2  | sha256 stability, `safeEqualHex` incl. malformed-hex rejection |
+| `sessions.test.ts`            | 4  | POST 201, POST 400, GET list (no token leakage) |
+| `sessions-delete.test.ts`     | 5  | DELETE 401 (no/wrong header), 404, 200 keep-memories (FK SET NULL), 200 cascade |
+| `memories.test.ts`            | 7  | 401/403 paths, 201 + uuidv7, UPSERT idempotency, list, trigram-ranked |
+| `orphaned.test.ts`            | 1  | After keep-memories delete, `/orphaned` SSR includes surviving titles |
+| `search.test.ts`              | 3  | 401, 400 (empty q), 200 multi-session hits with `sessionName` attribution |
+| `compare.test.ts`             | 3  | 401, three-bucket structure, threshold respected |
+| `ollama.test.ts`              | 1  | `ollamaHealth()` reaches `jarvis-ollama` and lists `OLLAMA_MODEL` |
+| `scrubber.test.ts`            | 18 | All 12 patterns, false-positive guards (git SHA, UUID, plain prose), multi-line PEM, payload helper |
+| `memories-hash.test.ts`       | 3  | POST sets server-computed `content_hash`; client-supplied hash ignored; UPSERT recompute |
+| `verify.test.ts`              | 4  | 401 missing header, 401 wrong login, 200 no drift, 409 drift induced via direct SQL UPDATE |
+| `audit-log.test.ts`           | 3  | session.create row, memory.create row with `entity_id`, memory.upsert.update row distinct from create |
+| `admin-logs.test.ts`          | 3  | 401 no header, 401 wrong login, 200 list with valid admin |
+| `recurrence.test.ts`          | 2  | 3× UPSERT → recurrence=3; lower confidence does NOT replace (GREATEST) |
+| `gotchas.test.ts`             | 2  | Endpoint shape `{threshold, high_recurrence, cross_session}`; entry hits high_recurrence after 3 replays |
+| **total** | **61** | `docker compose exec -T app pnpm test` |
 
-Test base URL: `http://localhost:3000` (defaults to in-container; override with `HUB_BASE_URL`). Cleanup: `afterAll` deletes test sessions by name prefix; CASCADE drops their memories.
+Run base URL defaults to `http://localhost:3000` inside the container; override with `HUB_BASE_URL`. Cleanup: `afterAll` deletes test sessions by name prefix.
+
+### Playwright E2E (7 cases · against tailnet URL)
+
+| File | Cases | Coverage |
+|---|---|---|
+| `e2e/dashboard.spec.ts` | 3 | Landing renders, `/orphaned` reachable, `/search` accepts input |
+| `e2e/diagnose.spec.ts`  | 4 | Gear menu opens, `/stats` renders KPIs, `/gotchas` renders both sections, light/dark toggle persists across navigation |
+
+Run: `PLAYWRIGHT_BASE_URL=https://hub.tail1e2290.ts.net pnpm test:e2e`
+
+### Cucumber BDD (3 scenarios · 11 steps · against tailnet URL)
+
+| Feature | Scenarios |
+|---|---|
+| `features/memories.feature` | Authenticated POST creates memory + 64-char content_hash; unauthenticated POST is rejected; client-supplied content_hash is ignored |
+
+Run: `HUB_BASE_URL=… AUTH_SECRET=… pnpm test:bdd`
 
 ## Phase 1 seal — verified 2026-04-25
 
@@ -390,14 +624,34 @@ This file MUST be updated at the seal of each phase.
 
 ---
 
-## How to verify the map matches reality
+## How to verify the map matches reality (2026-04-26)
 
 ```bash
-docker compose ps                        # hub-app + hub-db running
-docker network inspect jarvis-internal   # hub-app listed as a member
+# Containers
+docker compose ps                        # hub-app + hub-db + hub-ts (Up)
+docker network inspect jarvis-internal   # hub-ts listed as a member
 docker network inspect 3dmations-memory_hub-internal
-curl -i http://localhost:3000/           # 200, "Hub — Phase 0"
-make db                                  # psql opens, \dt shows nothing in Phase 0
+
+# Tailnet ingress (this host must also be on the tailnet)
+tailscale status | grep hub              # 100.77.207.85 hub tagged-devices
+curl -s https://hub.tail1e2290.ts.net/api/health
+# {"status":"ok","db":"ok","schema_version":1}
+
+# Schema
+docker compose exec db psql -U hub -d memories -c "\dt"
+# audit_log, memories, schema_version, sessions
+
+# Routes (smoke from any tailnet machine)
+curl -s https://hub.tail1e2290.ts.net/api/memories/verify | jq .
+curl -s https://hub.tail1e2290.ts.net/api/memories/gotchas?min=3 | jq .ok
+curl -s https://hub.tail1e2290.ts.net/api/admin/logs?limit=3 | jq '.logs | length'
+
+# Ollama wire (jarvis-internal still works)
 docker exec hub-app sh -c "wget -qO- http://jarvis-ollama:11434/api/tags | head -5"
-                                         # JSON model list — proves Ollama wire
+
+# Tests
+docker compose exec -T app pnpm test                                     # 61/61 vitest
+PLAYWRIGHT_BASE_URL=https://hub.tail1e2290.ts.net pnpm -C app test:e2e   # 7/7 Playwright
+HUB_BASE_URL=https://hub.tail1e2290.ts.net AUTH_SECRET=… \
+  pnpm -C app test:bdd                                                    # 11/11 Cucumber
 ```

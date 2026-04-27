@@ -14,7 +14,7 @@ function attachListeners(page: import("@playwright/test").Page) {
   return { consoleMessages, pageErrors };
 }
 
-test("home page gear button opens settings menu", async ({ page }) => {
+test("home page menu button opens settings menu", async ({ page }) => {
   const { consoleMessages, pageErrors } = attachListeners(page);
   await page.goto("/", { waitUntil: "networkidle" });
   await page.waitForTimeout(500);
@@ -24,21 +24,23 @@ test("home page gear button opens settings menu", async ({ page }) => {
   console.log("\n--- / page errors ---");
   for (const e of pageErrors) console.log(e);
 
-  const gear = page.getByRole("button", { name: "Settings" });
-  await expect(gear).toBeVisible();
-  await expect(gear).toHaveAttribute("aria-expanded", "false");
+  const menuBtn = page.getByRole("button", { name: "Menu" });
+  await expect(menuBtn).toBeVisible();
+  await expect(menuBtn).toHaveAttribute("aria-expanded", "false");
 
-  await gear.click();
+  await menuBtn.click();
   await page.waitForTimeout(200);
 
-  await expect(gear).toHaveAttribute("aria-expanded", "true");
+  await expect(menuBtn).toHaveAttribute("aria-expanded", "true");
   const menu = page.getByRole("menu");
   await expect(menu).toBeVisible();
 
-  const lightBtn = page.getByRole("menuitemradio", { name: /Light/ });
-  const darkBtn = page.getByRole("menuitemradio", { name: /Dark/ });
-  await expect(lightBtn).toBeVisible();
-  await expect(darkBtn).toBeVisible();
+  // Theme is a single switch (aria-label flips between "Switch to light/dark mode")
+  // and there are menuitem nav links inside the popup.
+  const themeSwitch = page.getByRole("switch");
+  await expect(themeSwitch).toBeVisible();
+  const navLinks = page.getByRole("menuitem");
+  await expect(navLinks.first()).toBeVisible();
 });
 
 test("/stats page renders KPI tiles + sections", async ({ page }) => {
@@ -64,8 +66,9 @@ test("/gotchas page renders both sections", async ({ page }) => {
 
 test("light/dark toggle persists across navigation", async ({ page }) => {
   await page.goto("/", { waitUntil: "networkidle" });
-  await page.getByRole("button", { name: "Settings" }).click();
-  await page.getByRole("menuitemradio", { name: /Light/ }).click();
+  await page.getByRole("button", { name: "Menu" }).click();
+  // Default theme is dark; the switch's aria-label reads "Switch to light mode" while dark.
+  await page.getByRole("switch", { name: /switch to light/i }).click();
 
   // Navigate to another page
   await page.goto("/stats");
@@ -73,7 +76,7 @@ test("light/dark toggle persists across navigation", async ({ page }) => {
   const html = page.locator("html");
   await expect(html).toHaveClass(/light/);
 
-  // Reset for other tests
-  await page.getByRole("button", { name: "Settings" }).click();
-  await page.getByRole("menuitemradio", { name: /Dark/ }).click();
+  // Reset for other tests — switch now reads "Switch to dark mode"
+  await page.getByRole("button", { name: "Menu" }).click();
+  await page.getByRole("switch", { name: /switch to dark/i }).click();
 });

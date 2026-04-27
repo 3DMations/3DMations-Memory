@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { desc, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
@@ -31,6 +32,16 @@ export default async function SessionsPage() {
 
   return (
     <main className="mx-auto w-full max-w-3xl px-6 py-12 font-sans">
+      <div className="relative mb-8 aspect-[4/1] w-full overflow-hidden rounded-[var(--radius-card)] border border-border shadow-[var(--shadow-md)]">
+        <Image
+          src="/brand/memhub-hero.png"
+          alt="Memory Hub — robots exchanging memories in a glowing data archive"
+          fill
+          priority
+          sizes="(max-width: 768px) 100vw, 768px"
+          className="object-cover object-[center_72%]"
+        />
+      </div>
       <PageHeader
         title="Memory Hub"
         description={

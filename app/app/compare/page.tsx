@@ -2,6 +2,7 @@ import Link from "next/link";
 import { desc, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { sessions } from "@/db/schema";
+import AutoRefresh from "../_components/AutoRefresh";
 import PageHeader from "../_components/ui/PageHeader";
 import Card from "../_components/ui/Card";
 import StatPill from "../_components/ui/StatPill";
@@ -107,6 +108,7 @@ export default async function ComparePage({ searchParams }: PageProps) {
 
   return (
     <main className="mx-auto w-full max-w-6xl px-6 py-12 font-sans">
+      <AutoRefresh />
       <PageHeader
         back={
           <Link href="/" className="text-text-muted hover:text-text transition-colors">

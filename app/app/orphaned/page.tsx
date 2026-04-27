@@ -2,6 +2,7 @@ import Link from "next/link";
 import { desc, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { memories } from "@/db/schema";
+import AutoRefresh from "../_components/AutoRefresh";
 import PageHeader from "../_components/ui/PageHeader";
 import Card from "../_components/ui/Card";
 import EmptyState from "../_components/ui/EmptyState";
@@ -19,6 +20,7 @@ export default async function OrphanedPage() {
 
   return (
     <main className="mx-auto w-full max-w-3xl px-6 py-12 font-sans">
+      <AutoRefresh />
       <PageHeader
         back={
           <Link href="/" className="text-text-muted hover:text-text transition-colors">

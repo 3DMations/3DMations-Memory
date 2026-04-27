@@ -3,6 +3,7 @@ import { desc, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { memories, sessions } from "@/db/schema";
 import SearchInput from "./SearchInput";
+import AutoRefresh from "../_components/AutoRefresh";
 import PageHeader from "../_components/ui/PageHeader";
 import Card from "../_components/ui/Card";
 import EmptyState from "../_components/ui/EmptyState";
@@ -52,6 +53,7 @@ export default async function SearchPage({ searchParams }: PageProps) {
 
   return (
     <main className="mx-auto w-full max-w-3xl px-6 py-12 font-sans">
+      <AutoRefresh />
       <PageHeader
         back={
           <Link href="/" className="text-text-muted hover:text-text transition-colors">

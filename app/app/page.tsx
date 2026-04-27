@@ -3,6 +3,7 @@ import Link from "next/link";
 import { desc, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { memories, sessions } from "@/db/schema";
+import AutoRefresh from "./_components/AutoRefresh";
 import SessionDeleteButton from "./_components/SessionDeleteButton";
 import PageHeader from "./_components/ui/PageHeader";
 import Card from "./_components/ui/Card";
@@ -32,6 +33,7 @@ export default async function SessionsPage() {
 
   return (
     <main className="mx-auto w-full max-w-3xl px-6 py-12 font-sans">
+      <AutoRefresh />
       <div className="relative mb-8 aspect-[4/1] w-full overflow-hidden rounded-[var(--radius-card)] border border-border shadow-[var(--shadow-md)]">
         <Image
           src="/brand/memhub-hero.png"

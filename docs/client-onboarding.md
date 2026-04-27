@@ -1,30 +1,25 @@
 # Adding a new machine or project to the Memory Hub
 
 The hub lives at `https://hub.tail1e2290.ts.net` (tailnet-only — no public ingress).
-Each machine that wants to read/write memories needs:
+Each project that wants to read/write memories needs:
 
-1. Tailscale up + signed in to the same tailnet
-2. The two slash commands installed at `~/.claude/commands/`
-3. The `hub-scrubber` skill installed at `~/.claude/skills/`
-4. Per-project `.claude/local/hub.env` with a session ID + token
+1. Tailscale up + signed in to the same tailnet on the client machine.
+2. A per-project `.claude/local/hub.env` containing the project's session id + bearer token.
+3. A small CRUD helper in the project (`.claude/local/hub-cli.sh`) — created automatically
+   by the bootstrap prompt below.
 
-## One-time per machine
+There is no machine-wide install step anymore. Everything is per-project, self-contained,
+and creatable from a single paste.
 
-```bash
-# Verify tailnet reachability
-tailscale status                                                     # should list "hub"
-curl -s https://hub.tail1e2290.ts.net/api/health                     # expect {"status":"ok",...}
+> **Note on the legacy slash commands.** The original `/hub-sync` and `/hub-search` lived
+> at `.claude/commands/hub-{sync,search}.md` and used the v3 mTLS + `X-API-Key` auth model
+> (endpoints `/api/sync`, `/api/search`). The hub was migrated to bearer + session auth in
+> v4.3 (endpoints `POST /api/memories`, `GET /api/memories/search`); the slash commands
+> were not. They have been archived to `.claude/commands/.archive/hub-{sync,search}-v3-mtls.md`
+> and the bash helper below is now the canonical client. If a future bulk-sync need
+> resurfaces, write a fresh purpose-built helper rather than reviving the v3 scripts.
 
-# Pull the client commands + scrubber skill from the hub host
-mkdir -p ~/.claude/commands ~/.claude/skills
-scp <hub-username>@aiwork-legion:~/.claude/commands/hub-search.md ~/.claude/commands/
-scp <hub-username>@aiwork-legion:~/.claude/commands/hub-sync.md   ~/.claude/commands/
-scp -r <hub-username>@aiwork-legion:~/Documents/Projects/3DMations-Memory/.claude/skills/hub-scrubber ~/.claude/skills/
-```
-
-`aiwork-legion` resolves via tailnet MagicDNS — no IP needed.
-
-## Per project — mint a session and write hub.env
+## Step 1 — Mint a session for the project
 
 From any machine on the tailnet (the hub host is convenient):
 
@@ -48,32 +43,46 @@ Response:
 
 **Copy the token immediately — it's hashed server-side after this response. Lose it and you mint a new session.**
 
-Then on the client machine, in the project root:
+## Step 2 — Bootstrap the project on the client machine
+
+Open a Claude Code session in the target project's root directory on the client machine,
+then paste the bootstrap prompt from [`docs/new-session-bootstrap.md`](./new-session-bootstrap.md)
+into the chat. Fill in the `HUB_SESSION` and `HUB_TOKEN` placeholders with the values
+from Step 1.
+
+The session will:
+
+- Verify tailnet reachability (`tailscale status`, `/api/health`).
+- Confirm `curl` and `jq` are on PATH.
+- Write `.claude/local/hub.env` (chmod 600) with the URL + session + token.
+- Write `.claude/local/hub-cli.sh` with `hub-create`, `hub-upsert`, `hub-list`, `hub-search`,
+  including a 12-pattern fail-closed credential scrubber that mirrors the
+  `.claude/skills/hub-scrubber` skill.
+- Add `.claude/local/` to `.gitignore` if it's not already covered.
+- Run a read-only round-trip (`hub-list 1`) to confirm bearer auth is wired.
+
+No SCP, no machine-wide install, no copy-pasting of skills or commands across machines.
+
+## Step 3 — Use it
+
+From the project root, in any Claude Code turn or shell:
 
 ```bash
-mkdir -p .claude/local
-cat > .claude/local/hub.env <<EOF
-HUB_URL=https://hub.tail1e2290.ts.net
-HUB_SESSION=<id-from-response>
-HUB_TOKEN=<token-from-response>
-EOF
+source .claude/local/hub-cli.sh
+hub-list 50                                            # most recent N memories for THIS session
+hub-search "hydration bug"                             # trigram-ranked search across ALL sessions
+hub-create "title" "body" "category" "tag1,tag2"       # one-shot create
+hub-upsert "local-id-123" "title" "body" "cat" "" 0.7  # idempotent upsert (recurrence++ server-side)
 ```
 
-Add `.claude/local/` to that project's `.gitignore` if it's not already covered.
+Expected wire shapes (verified against `app/app/api/memories/route.ts`):
 
-## Verify the project is wired
+- `hub-list`   → `{"memories": [...]}` (wrapper, not a bare array)
+- `hub-search` → `{"query":"...","count":N,"results":[...]}`
+- `hub-create` / `hub-upsert` → `201` + the created/updated row as JSON
 
-From the project root on the client machine:
-
-```bash
-source .claude/local/hub.env
-curl -s -H "Authorization: Bearer $HUB_TOKEN" \
-  "$HUB_URL/api/memories?session=$HUB_SESSION&limit=1"
-```
-
-Expect a JSON list (likely empty for a new session). 401 → token wrong. Timeout → tailnet down.
-
-In Claude Code on that project, `/hub-search` and `/hub-sync` should now work.
+401 from any call → bearer token wrong, mint a fresh session.
+Timeout → tailnet down on the client.
 
 ## Listing existing sessions
 

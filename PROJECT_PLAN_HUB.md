@@ -765,3 +765,15 @@ The hub stack on this machine is migrating from `127.0.0.1:${APP_PORT}` (host-bo
 - ⏳ 1 more machine pending (5 total target per plan)
 
 **Client `.claude/local/hub.json` updates:** still TODO on each client machine — switch from `https://<lan-ip>:8443` to `https://hub.tail1e2290.ts.net`. No auth needed beyond tailnet membership; admin operations (DELETE, /verify) require `Tailscale-User-Login` matching `HUB_ADMIN_LOGIN` server-side.
+
+---
+
+## v4.3 Phase 6 — Self-Monitoring (proposed 2026-04-27)
+
+User-triggered upgrade (first slot in the originally-deferred "Phase 6+ Conditional Upgrades" bucket). Adds an in-app `/systemhealth` page so we can see container memory, Postgres connection count, DB size growth, and row counts trending over time without shelling into the host.
+
+**Design:** see `docs/plan-v4.3-phase-6-systemhealth.md`. Single `system_metrics` table, no partitioning; collection via Next.js `instrumentation.ts` → `setInterval` (5-min cadence — industry norm for low-volume internal monitoring); display via `recharts` (new prod dep) on a Server Component page that mounts the existing `<AutoRefresh />` for 60s tab-focus refresh.
+
+**Why now:** pc-001 just onboarded and 3dm-inspiron-5547 is already wired — single-host blast radius is growing. Phases 0–5 sealed without any in-app health view; `/api/health` returns one boolean with no trend.
+
+**Status:** PROPOSED — not yet built. Three slices: 6a (schema + collector), 6b (dashboard + recharts), 6c (tests + seal). Deferred sub-phases (HTTP error rate, hourly rollups, Prometheus sidecar) only unlock if the basic 9-metric set proves insufficient.

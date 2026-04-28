@@ -21,3 +21,21 @@ CREATE INDEX IF NOT EXISTS idx_memories_tags
 INSERT INTO schema_version (version, description)
 VALUES (1, 'initial schema — PG18 with uuidv7')
 ON CONFLICT (version) DO NOTHING;
+
+-- Phase 6 — self-monitoring (system_metrics table).
+-- Applied directly via psql rather than drizzle-kit push to avoid the
+-- schema_version TTY prompt (see plan-v4.3-phase-3.md gotcha #3).
+CREATE TABLE IF NOT EXISTS system_metrics (
+  id           BIGSERIAL PRIMARY KEY,
+  recorded_at  TIMESTAMPTZ DEFAULT now() NOT NULL,
+  metric       TEXT NOT NULL,
+  value        DOUBLE PRECISION NOT NULL,
+  metadata     JSONB DEFAULT '{}'::jsonb
+);
+
+CREATE INDEX IF NOT EXISTS idx_metrics_metric_time
+  ON system_metrics (metric, recorded_at);
+
+INSERT INTO schema_version (version, description)
+VALUES (2, 'phase 6 — system_metrics for /systemhealth')
+ON CONFLICT (version) DO NOTHING;

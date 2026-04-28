@@ -5,6 +5,7 @@ import {
   timestamp,
   integer,
   real,
+  doublePrecision,
   jsonb,
   uniqueIndex,
   index,
@@ -70,9 +71,30 @@ export const auditLog = pgTable(
   ]
 );
 
+// Phase 6 — self-monitoring. Collector writes one row per metric per tick
+// (every 5 min). See instrumentation-node.ts for collection logic and
+// app/app/systemhealth/page.tsx for visualization.
+export const systemMetrics = pgTable(
+  "system_metrics",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    recordedAt: timestamp("recorded_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    metric: text("metric").notNull(),
+    value: doublePrecision("value").notNull(),
+    metadata: jsonb("metadata").default({}),
+  },
+  (t) => [
+    index("idx_metrics_metric_time").on(t.metric, t.recordedAt),
+  ]
+);
+
 export type Session = typeof sessions.$inferSelect;
 export type NewSession = typeof sessions.$inferInsert;
 export type Memory = typeof memories.$inferSelect;
 export type NewMemory = typeof memories.$inferInsert;
 export type AuditLogEntry = typeof auditLog.$inferSelect;
 export type NewAuditLogEntry = typeof auditLog.$inferInsert;
+export type SystemMetric = typeof systemMetrics.$inferSelect;
+export type NewSystemMetric = typeof systemMetrics.$inferInsert;

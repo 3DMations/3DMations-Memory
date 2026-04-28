@@ -8,23 +8,76 @@ import { METRIC_ORDER } from "./metric-docs";
 
 export const dynamic = "force-dynamic";
 
+// Bucket sizes scale with window so each chart stays at ~150-200 points
+// regardless of range. Postgres date_bin (14+) handles arbitrary intervals;
+// we're on PG18 so it's available natively.
+type RangeKey = "24h" | "7d" | "30d" | "90d" | "1y";
+
+const RANGE_CONFIG: Record<
+  RangeKey,
+  { label: string; window: string; bucket: string; description: string }
+> = {
+  "24h": {
+    label: "24h",
+    window: "24 hours",
+    bucket: "10 minutes",
+    description: "Last 24 hours, aggregated to 10-min buckets",
+  },
+  "7d": {
+    label: "7d",
+    window: "7 days",
+    bucket: "1 hour",
+    description: "Last 7 days, aggregated to hourly buckets",
+  },
+  "30d": {
+    label: "30d",
+    window: "30 days",
+    bucket: "4 hours",
+    description: "Last 30 days, aggregated to 4-hour buckets",
+  },
+  "90d": {
+    label: "90d",
+    window: "90 days",
+    bucket: "12 hours",
+    description: "Last 90 days, aggregated to 12-hour buckets",
+  },
+  "1y": {
+    label: "1y",
+    window: "365 days",
+    bucket: "1 day",
+    description: "Last 365 days, aggregated to daily buckets",
+  },
+};
+
+const ALL_RANGES: RangeKey[] = ["24h", "7d", "30d", "90d", "1y"];
+
+function isRangeKey(s: string | undefined): s is RangeKey {
+  return s !== undefined && (ALL_RANGES as string[]).includes(s);
+}
+
 interface BucketRow extends Record<string, unknown> {
   metric: string;
   bucket: string;
   v: number;
 }
 
-export default async function SystemHealthPage() {
-  // Last 24h, aggregated to ~10-min buckets so charts render quickly even
-  // as the table grows. avg() collapses any duplicate ticks within a bucket.
+interface PageProps {
+  searchParams: Promise<{ range?: string }>;
+}
+
+export default async function SystemHealthPage({ searchParams }: PageProps) {
+  const { range: rangeParam } = await searchParams;
+  const range: RangeKey = isRangeKey(rangeParam) ? rangeParam : "24h";
+  const cfg = RANGE_CONFIG[range];
+
+  // ::interval cast lets us parameterize the bucket / window strings safely
+  // through drizzle's sql tag — values are bound as parameters, not concatenated.
   const result = await db.execute<BucketRow>(sql`
     SELECT metric,
-           date_trunc('minute', recorded_at)
-             - (EXTRACT(MINUTE FROM recorded_at)::int % 10) * INTERVAL '1 minute'
-             AS bucket,
+           date_bin(${cfg.bucket}::interval, recorded_at, '2000-01-01'::timestamptz) AS bucket,
            avg(value) AS v
       FROM system_metrics
-     WHERE recorded_at >= now() - INTERVAL '24 hours'
+     WHERE recorded_at >= now() - ${cfg.window}::interval
      GROUP BY metric, bucket
      ORDER BY metric, bucket
   `);
@@ -35,7 +88,7 @@ export default async function SystemHealthPage() {
   }
   for (const row of result.rows) {
     const series = byMetric.get(row.metric);
-    if (!series) continue; // metric not in canonical list — skip
+    if (!series) continue;
     series.points.push({
       t: new Date(row.bucket).toISOString(),
       v: Number(row.v),
@@ -60,9 +113,9 @@ export default async function SystemHealthPage() {
         title="System health"
         description={
           <>
-            Last 24h, sampled every 5 min, aggregated to 10-min buckets.{" "}
-            {totalPoints} data point{totalPoints === 1 ? "" : "s"} across{" "}
-            {METRIC_ORDER.length} metrics. Hover the{" "}
+            {cfg.description}. {totalPoints} data point
+            {totalPoints === 1 ? "" : "s"} across {METRIC_ORDER.length} metrics.
+            Hover the{" "}
             <span className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-border text-[10px] font-semibold align-middle">
               i
             </span>{" "}
@@ -70,6 +123,29 @@ export default async function SystemHealthPage() {
           </>
         }
       />
+
+      <nav
+        aria-label="Time range"
+        className="mb-6 inline-flex rounded-[var(--radius-button)] border border-border bg-surface/30 p-1 text-[14px]"
+      >
+        {ALL_RANGES.map((r) => {
+          const active = r === range;
+          return (
+            <Link
+              key={r}
+              href={`/systemhealth?range=${r}`}
+              aria-current={active ? "page" : undefined}
+              className={
+                active
+                  ? "rounded-[var(--radius-button)] bg-accent px-3 py-1 font-medium text-bg shadow-[var(--shadow-sm)]"
+                  : "rounded-[var(--radius-button)] px-3 py-1 text-text-muted hover:text-text"
+              }
+            >
+              {RANGE_CONFIG[r].label}
+            </Link>
+          );
+        })}
+      </nav>
 
       <MetricsCharts series={series} />
     </main>

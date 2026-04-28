@@ -30,6 +30,7 @@ const NAV_ITEMS: { href: string; label: string }[] = [
   { href: "/compare", label: "Compare" },
   { href: "/stats", label: "Stats" },
   { href: "/gotchas", label: "Gotchas" },
+  { href: "/systemhealth", label: "System health" },
 ];
 
 function SunIcon() {

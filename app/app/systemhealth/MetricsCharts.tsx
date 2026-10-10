@@ -11,11 +11,32 @@ import {
 } from "recharts";
 import MetricInfo from "./MetricInfo";
 import { METRIC_DOCS, METRIC_ORDER, type MetricDoc } from "./metric-docs";
+import {
+  formatEasternStamp,
+  formatEasternTime,
+  formatEasternDateHour,
+  formatEasternDate,
+  formatEasternMonth,
+} from "@/lib/format-date";
 
 export interface Series {
   metric: string;
   points: { t: string; v: number }[];
 }
+
+export type RangeKey = "24h" | "7d" | "30d" | "90d" | "1y";
+
+// Tick label granularity follows bucket size: minutes → HH:MM, hours →
+// MM-DD HH:00, multi-hour/daily → MM-DD, yearly → YYYY-MM. Recharts then
+// thins these out via minTickGap, so the chart shows ~6 evenly-spaced ticks
+// in whichever format makes sense for the range.
+const TICK_FORMATTERS: Record<RangeKey, (t: string) => string> = {
+  "24h": formatEasternTime,
+  "7d": formatEasternDateHour,
+  "30d": formatEasternDate,
+  "90d": formatEasternDate,
+  "1y": formatEasternMonth,
+};
 
 function formatValue(value: number, unit: MetricDoc["unit"]): string {
   if (unit === "bytes") {
@@ -33,13 +54,14 @@ function formatValue(value: number, unit: MetricDoc["unit"]): string {
   return value.toLocaleString();
 }
 
-function formatTimestamp(t: string): string {
-  // ISO timestamp → HH:MM in local time for chart axes/tooltips.
-  const d = new Date(t);
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
-
-export default function MetricsCharts({ series }: { series: Series[] }) {
+export default function MetricsCharts({
+  series,
+  range,
+}: {
+  series: Series[];
+  range: RangeKey;
+}) {
+  const formatTimestamp = TICK_FORMATTERS[range];
   // Render in canonical order so the page layout is stable across reloads.
   const byMetric = new Map(series.map((s) => [s.metric, s]));
 
@@ -106,7 +128,7 @@ export default function MetricsCharts({ series }: { series: Series[] }) {
                     }}
                     labelFormatter={(label) =>
                       typeof label === "string"
-                        ? new Date(label).toLocaleString()
+                        ? formatEasternStamp(label)
                         : String(label ?? "")
                     }
                     formatter={(value) => {

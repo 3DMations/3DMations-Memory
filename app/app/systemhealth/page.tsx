@@ -147,7 +147,7 @@ export default async function SystemHealthPage({ searchParams }: PageProps) {
         })}
       </nav>
 
-      <MetricsCharts series={series} />
+      <MetricsCharts series={series} range={range} />
     </main>
   );
 }

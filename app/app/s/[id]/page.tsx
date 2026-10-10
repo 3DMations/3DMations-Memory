@@ -8,6 +8,7 @@ import PageHeader from "../../_components/ui/PageHeader";
 import Card from "../../_components/ui/Card";
 import EmptyState from "../../_components/ui/EmptyState";
 import StatPill from "../../_components/ui/StatPill";
+import { formatEasternStamp } from "@/lib/format-date";
 
 export const dynamic = "force-dynamic";
 
@@ -141,7 +142,7 @@ export default async function SessionDetailPage({
                   </div>
                 )}
                 <div className="mt-3 text-[14px] text-text-subtle font-mono">
-                  {new Date(m.createdAt!).toISOString().slice(0, 16)} UTC
+                  {formatEasternStamp(m.createdAt!)}
                   {m.localEntryId && <> · local id: {m.localEntryId}</>}
                 </div>
               </Card>

@@ -9,6 +9,7 @@ import PageHeader from "./_components/ui/PageHeader";
 import Card from "./_components/ui/Card";
 import EmptyState from "./_components/ui/EmptyState";
 import StatPill from "./_components/ui/StatPill";
+import { formatEasternStamp } from "@/lib/format-date";
 
 export const dynamic = "force-dynamic";
 
@@ -145,6 +146,5 @@ function NavLink({
 }
 
 function formatDate(d: Date | null): string {
-  if (!d) return "never";
-  return new Date(d).toISOString().replace("T", " ").slice(0, 16) + " UTC";
+  return formatEasternStamp(d);
 }

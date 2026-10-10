@@ -7,6 +7,7 @@ import PageHeader from "../_components/ui/PageHeader";
 import Card from "../_components/ui/Card";
 import EmptyState from "../_components/ui/EmptyState";
 import StatPill from "../_components/ui/StatPill";
+import { formatEasternStamp } from "@/lib/format-date";
 
 export const dynamic = "force-dynamic";
 
@@ -234,7 +235,7 @@ export default async function StatsPage() {
                 <div>
                   <div className="text-[15px] font-medium text-text">{s.name}</div>
                   <div className="text-[13px] text-text-subtle font-mono mt-0.5">
-                    last seen {s.lastSeen?.toISOString().slice(0, 16) ?? "never"} UTC
+                    last seen {formatEasternStamp(s.lastSeen ?? null)}
                   </div>
                 </div>
                 <StatPill tone="neutral">{s.memoryCount} memor{s.memoryCount === 1 ? "y" : "ies"}</StatPill>

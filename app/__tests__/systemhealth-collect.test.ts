@@ -3,11 +3,19 @@
 // on the shape of what would be written, without polluting system_metrics
 // with extra rows.
 
+import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { collectSamples } from "@/lib/system-metrics";
 
+// Two cgroup-v2 metrics require /sys/fs/cgroup/{memory.current,memory.events}
+// to be readable by the test process. That's true inside a container with
+// cgroup-v2 (PID 1 of the cgroup) but not on a bare Linux host running tests
+// directly — the host's cgroup root has no memory.* keys. Detect the
+// environment and assert accordingly.
+const CGROUP_V2_ROOTED = existsSync("/sys/fs/cgroup/memory.current");
+
 describe("collectSamples()", () => {
-  it("returns the full 10-sample set on Linux/cgroup-v2", async () => {
+  it("returns every metric documented for the current environment", async () => {
     const samples = await collectSamples();
 
     const metrics = new Set(samples.map((s) => s.metric));
@@ -21,15 +29,19 @@ describe("collectSamples()", () => {
     expect(metrics).toContain("memories.row_count");
     expect(metrics).toContain("sessions.row_count");
 
-    // Linux-only (skipped silently on macOS dev)
     if (process.platform === "linux") {
+      // statfs("/") works on any Linux, in or out of a container.
+      expect(metrics).toContain("host.disk_free_bytes");
+    }
+
+    if (CGROUP_V2_ROOTED) {
       expect(metrics).toContain("hub_app.cgroup_mem_bytes");
       expect(metrics).toContain("hub_app.oom_group_kill_count");
-      expect(metrics).toContain("host.disk_free_bytes");
-      expect(samples.length).toBe(10);
-    } else {
-      expect(samples.length).toBeGreaterThanOrEqual(7);
     }
+
+    const expectedMin =
+      7 + (process.platform === "linux" ? 1 : 0) + (CGROUP_V2_ROOTED ? 2 : 0);
+    expect(samples.length).toBe(expectedMin);
   });
 
   it("every sample has a finite numeric value", async () => {

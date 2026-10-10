@@ -9,7 +9,10 @@ export async function createSession(name: string): Promise<{
 }> {
   const res = await fetch(`${BASE_URL}/api/sessions`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "X-Admin-Token": ADMIN_TOKEN,
+    },
     body: JSON.stringify({ name }),
   });
   if (!res.ok) throw new Error(`createSession failed: HTTP ${res.status}`);

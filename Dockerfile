@@ -21,4 +21,6 @@ COPY app/ ./
 
 EXPOSE 3000
 
-CMD ["pnpm", "dev", "--port", "3000", "--hostname", "0.0.0.0"]
+# Loopback fallback: only Serve (same netns) may reach the app. If compose's
+# command is ever dropped, dev mode must NOT re-expose :3000 on shared bridges.
+CMD ["pnpm", "dev", "--port", "3000", "--hostname", "127.0.0.1"]

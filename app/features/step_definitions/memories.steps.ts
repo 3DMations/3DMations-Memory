@@ -19,7 +19,10 @@ Before(() => {
 Given("a fresh test session named {string}", async function (name: string) {
   const res = await fetch(`${BASE_URL}/api/sessions`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "X-Admin-Token": process.env.AUTH_SECRET ?? "",
+    },
     body: JSON.stringify({ name: `bdd-${name}-${Date.now()}` }),
   });
   assert.equal(res.status, 201, `session create failed: ${res.status}`);

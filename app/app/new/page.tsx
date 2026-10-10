@@ -5,6 +5,7 @@ import { useState } from "react";
 import PageHeader from "../_components/ui/PageHeader";
 import Card from "../_components/ui/Card";
 import Button from "../_components/ui/Button";
+import { ADMIN_KEY } from "@/lib/admin-key";
 
 interface CreatedSession {
   id: string;
@@ -14,6 +15,7 @@ interface CreatedSession {
 
 export default function NewSessionPage() {
   const [name, setName] = useState("");
+  const [adminToken, setAdminToken] = useState("");
   const [created, setCreated] = useState<CreatedSession | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -26,13 +28,21 @@ export default function NewSessionPage() {
     try {
       const res = await fetch("/api/sessions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Admin-Token": adminToken,
+        },
         body: JSON.stringify({ name }),
       });
       const data = await res.json();
-      if (!res.ok) {
+      if (res.status === 401) {
+        sessionStorage.removeItem(ADMIN_KEY);
+        setAdminToken("");
+        setError("Admin token rejected. Re-enter it.");
+      } else if (!res.ok) {
         setError(data.error ?? `HTTP ${res.status}`);
       } else {
+        sessionStorage.setItem(ADMIN_KEY, adminToken);
         setCreated({ id: data.id, name: data.name, token: data.token });
       }
     } catch (err) {
@@ -119,7 +129,7 @@ export default function NewSessionPage() {
         <form onSubmit={onSubmit} className="space-y-5">
           <label className="block">
             <span className="mb-1.5 block text-[13px] font-semibold uppercase tracking-[0.06em] text-text-muted">
-              Name
+              Session name
             </span>
             <input
               type="text"
@@ -135,13 +145,36 @@ export default function NewSessionPage() {
             </span>
           </label>
 
+          <label className="block">
+            <span className="mb-1.5 block text-[13px] font-semibold uppercase tracking-[0.06em] text-text-muted">
+              Admin token
+            </span>
+            <input
+              type="password"
+              required
+              value={adminToken}
+              onChange={(e) => setAdminToken(e.target.value)}
+              autoComplete="off"
+              placeholder="AUTH_SECRET — approves a new device"
+              className="w-full rounded-[var(--radius-button)] border border-border bg-bg px-3 py-2.5 text-[16px] text-text placeholder:text-text-subtle focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30 transition-colors"
+            />
+            <span className="mt-1.5 block text-[14px] text-text-subtle">
+              Minting sessions is operator-gated (hub <code className="font-mono">AUTH_SECRET</code>).
+            </span>
+          </label>
+
           {error && (
             <div className="rounded-[var(--radius-button)] border border-error/30 bg-error/10 px-3 py-2 text-[15px] text-error">
               {error}
             </div>
           )}
 
-          <Button type="submit" disabled={submitting || name.trim().length === 0}>
+          <Button
+            type="submit"
+            disabled={
+              submitting || name.trim().length === 0 || adminToken.length === 0
+            }
+          >
             {submitting ? "Creating…" : "Create session"}
           </Button>
         </form>

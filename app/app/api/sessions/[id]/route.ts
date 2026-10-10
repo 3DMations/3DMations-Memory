@@ -1,24 +1,11 @@
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { memories, sessions } from "@/db/schema";
+import { isAdminAuthorized } from "@/lib/admin-token";
 import { actorFrom, logAudit, requestIdFrom } from "@/lib/audit";
 
 interface Params {
   params: Promise<{ id: string }>;
-}
-
-// TODO: when real user auth lands (Phase 3+), split admin auth off AUTH_SECRET
-// into a dedicated ADMIN_TOKEN env. For Phase 1.6 (single user) the reuse is fine.
-function isAdminAuthorized(request: Request): boolean {
-  const provided = request.headers.get("x-admin-token");
-  const expected = process.env.AUTH_SECRET;
-  if (!provided || !expected) return false;
-  if (provided.length !== expected.length) return false;
-  let diff = 0;
-  for (let i = 0; i < provided.length; i++) {
-    diff |= provided.charCodeAt(i) ^ expected.charCodeAt(i);
-  }
-  return diff === 0;
 }
 
 export async function DELETE(request: Request, { params }: Params) {

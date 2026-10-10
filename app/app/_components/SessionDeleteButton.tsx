@@ -4,8 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import IconButton from "./ui/IconButton";
 import Button from "./ui/Button";
-
-const ADMIN_KEY = "memory-hub:admin-token";
+import { ADMIN_KEY } from "@/lib/admin-key";
 
 interface Props {
   sessionId: string;

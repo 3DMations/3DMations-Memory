@@ -4,8 +4,8 @@
 // against that container on a free port. Returns the connection details and
 // a teardown function that stops everything cleanly.
 
-import { PostgreSqlContainer, StartedPostgreSqlContainer } from "@testcontainers/postgresql";
-import { spawnSync, spawn, ChildProcess } from "node:child_process";
+import { PostgreSqlContainer } from "@testcontainers/postgresql";
+import { spawnSync, spawn } from "node:child_process";
 import { Client } from "pg";
 import * as fs from "node:fs";
 import * as net from "node:net";
@@ -62,11 +62,8 @@ async function waitForHttp(url: string, timeoutMs: number): Promise<void> {
 }
 
 export async function bootStack(): Promise<BootResult> {
-  let container: StartedPostgreSqlContainer | undefined;
-  let nextProc: ChildProcess | undefined;
-
   // -------------------------------------------------------------------- DB
-  container = await new PostgreSqlContainer("postgres:18-alpine")
+  const container = await new PostgreSqlContainer("postgres:18-alpine")
     .withDatabase("hubtest")
     .withUsername("hubtest")
     .withPassword("hubtest")
@@ -113,7 +110,7 @@ export async function bootStack(): Promise<BootResult> {
   // detached: true puts the child in its own process group. Combined with
   // process.kill(-pid, ...) at teardown, this reliably kills the whole tree
   // (pnpm CLI → next CLI → next-server worker) instead of just the top.
-  nextProc = spawn(
+  const nextProc = spawn(
     "pnpm",
     ["exec", "next", "dev", "-p", String(port), "-H", "127.0.0.1"],
     {

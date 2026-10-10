@@ -34,10 +34,13 @@ services:
     # Serve doesn't proxy ws:// upgrades, and a failing HMR socket prevents React
     # hydration in dev mode (diagnosed via Playwright 2026-04-26).
     # For active dev iteration with HMR, use the app-debug profile on localhost.
-    command: ["sh", "-c", "pnpm build && pnpm start -p 3000 -H 0.0.0.0"]
-    # Tailnet is the only ingress. App's HTTP socket is reachable inside ts-hub's
-    # netns at 127.0.0.1:3000 — that's what serve.json proxies to.
-    # NO `ports:` and NO `networks:` — both inherited from ts-hub.
+    # Loopback bind (security audit 2026-10-10): the socket is reachable ONLY
+    # inside ts-hub's netns at 127.0.0.1:3000 — what serve.json proxies to.
+    # Binding 0.0.0.0 here would also expose :3000 on ts-hub's jarvis-internal
+    # bridge IP, letting any container on that shared network bypass Tailscale
+    # entirely and spoof Tailscale-User-Login. Loopback makes "tailnet is the
+    # only ingress" enforced, not assumed.
+    command: ["sh", "-c", "pnpm build && pnpm start -p 3000 -H 127.0.0.1"]
     network_mode: service:ts-hub
     volumes:
       - ./app:/app

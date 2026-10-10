@@ -21,12 +21,26 @@ and creatable from a single paste.
 
 ## Step 1 — Mint a session for the project
 
-From any machine on the tailnet (the hub host is convenient):
+Minting is admin-gated (the hub's `AUTH_SECRET` as `X-Admin-Token` — a tailnet
+member without it cannot self-issue API credentials). Three ways to approve:
+
+**a) From the hub host — Make target (simplest):**
 
 ```bash
-# Replace the name with whatever describes the project (gets stored verbatim)
+make session name=<machine>-<project>   # token printed once in the JSON response
+```
+
+**b) From the hub dashboard — /new page:** enter the session name + admin token,
+submit. Token shown once, copy it.
+
+**c) From any tailnet machine — curl:**
+
+```bash
+# AUTH_SECRET is set in the hub's .env; run this from the hub host (or any
+# machine where you hold the admin token)
 curl -s -X POST https://hub.tail1e2290.ts.net/api/sessions \
   -H 'Content-Type: application/json' \
+  -H "X-Admin-Token: $AUTH_SECRET" \
   -d '{"name":"<machine>-<project>"}'
 ```
 

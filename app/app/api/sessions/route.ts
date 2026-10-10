@@ -2,9 +2,20 @@ import { desc } from "drizzle-orm";
 import { db } from "@/db";
 import { sessions } from "@/db/schema";
 import { newBearerToken, newSessionId, sha256 } from "@/lib/crypto";
+import { isAdminAuthorized } from "@/lib/admin-token";
 import { actorFrom, logAudit, requestIdFrom } from "@/lib/audit";
 
 export async function POST(request: Request) {
+  // Session minting is the credential-issuing step — it requires the admin
+  // token, same as session deletion. A tailnet member without the token
+  // cannot mint API credentials (approvals are operator-gated).
+  if (!isAdminAuthorized(request)) {
+    return Response.json(
+      { error: "admin token required (X-Admin-Token header)" },
+      { status: 401 }
+    );
+  }
+
   let body: unknown;
   try {
     body = await request.json();

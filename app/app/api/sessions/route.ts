@@ -3,12 +3,16 @@ import { db } from "@/db";
 import { sessions } from "@/db/schema";
 import { newBearerToken, newSessionId, sha256 } from "@/lib/crypto";
 import { isAdminAuthorized } from "@/lib/admin-token";
+import { limitHeaders } from "@/lib/rate-limit";
 import { actorFrom, logAudit, requestIdFrom } from "@/lib/audit";
 
 export async function POST(request: Request) {
   // Session minting is the credential-issuing step — it requires the admin
   // token, same as session deletion. A tailnet member without the token
-  // cannot mint API credentials (approvals are operator-gated).
+  // cannot mint API credentials (approvals are operator-gated). Rate limit
+  // sits in front of the token compare to blunt brute-force attempts.
+  const limited = limitHeaders(request, "sessions-create", 10);
+  if (limited) return limited;
   if (!isAdminAuthorized(request)) {
     return Response.json(
       { error: "admin token required (X-Admin-Token header)" },
@@ -64,7 +68,15 @@ export async function POST(request: Request) {
   );
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  // Unauthenticated enumeration is by design (tailnet-trust model), but the
+  // result set is capped so a growing sessions table can't amplify into
+  // unbounded responses.
+  const url = new URL(request.url);
+  const limitRaw = parseInt(url.searchParams.get("limit") ?? "", 10);
+  const limit =
+    Number.isFinite(limitRaw) && limitRaw >= 1 ? Math.min(limitRaw, 500) : 100;
+
   const rows = await db
     .select({
       id: sessions.id,
@@ -73,7 +85,8 @@ export async function GET() {
       lastSeen: sessions.lastSeen,
     })
     .from(sessions)
-    .orderBy(desc(sessions.lastSeen));
+    .orderBy(desc(sessions.lastSeen))
+    .limit(limit);
 
   return Response.json({ sessions: rows });
 }

@@ -1,10 +1,21 @@
 import { desc, gte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { memories, sessions } from "@/db/schema";
+import { limitHeaders } from "@/lib/rate-limit";
 
 const DEFAULT_THRESHOLD = 3;
 
+// Bucket B pairs rows pairwise (similarity over every ordered pair). Capping
+// the candidate pool to the 500 most recently updated titled memories bounds
+// the work at ~250k pair evaluations instead of O(n²) over the whole table —
+// an unauthenticated caller can no longer scale this with table growth
+// (audit 2026-10-10). Rate limit + statement_timeout backstop the rest.
+const CROSS_JOIN_CANDIDATE_CAP = 500;
+
 export async function GET(request: Request) {
+  const limited = limitHeaders(request, "gotchas-api", 10);
+  if (limited) return limited;
+
   const url = new URL(request.url);
   const minRaw = parseInt(url.searchParams.get("min") ?? "", 10);
   const min =
@@ -42,6 +53,8 @@ export async function GET(request: Request) {
       SELECT id::text AS id, title, session_id, recurrence, updated_at
         FROM memories
        WHERE session_id IS NOT NULL
+       ORDER BY updated_at DESC
+       LIMIT ${CROSS_JOIN_CANDIDATE_CAP}
     ),
     pairs AS (
       SELECT a.title AS title_a,

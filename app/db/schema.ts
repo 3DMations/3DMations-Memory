@@ -13,13 +13,21 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
-export const sessions = pgTable("sessions", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  tokenHash: text("token_hash").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  lastSeen: timestamp("last_seen", { withTimezone: true }).defaultNow(),
-});
+export const sessions = pgTable(
+  "sessions",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    tokenHash: text("token_hash").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+    lastSeen: timestamp("last_seen", { withTimezone: true }).defaultNow(),
+  },
+  (t) => [
+    // Bearer auth looks sessions up by token hash — index it instead of
+    // full-scanning the table on every authenticated request.
+    uniqueIndex("idx_sessions_token_hash").on(t.tokenHash),
+  ]
+);
 
 export const memories = pgTable(
   "memories",

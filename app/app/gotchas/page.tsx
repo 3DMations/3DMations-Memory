@@ -49,6 +49,8 @@ export default async function GotchasPage({ searchParams }: PageProps) {
       SELECT id::text AS id, title, session_id, recurrence, updated_at
         FROM memories
        WHERE session_id IS NOT NULL
+       ORDER BY updated_at DESC
+       LIMIT 500
     ),
     pairs AS (
       SELECT a.title AS title_a,

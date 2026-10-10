@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { sessions, type Session } from "@/db/schema";
-import { safeEqualHex, sha256 } from "./crypto";
+import { sha256 } from "./crypto";
 
 export type AuthResult =
   | { ok: true; session: Session }
@@ -21,16 +21,15 @@ export async function authenticate(
   const token = extractBearer(req);
   if (!token) return { ok: false, status: 401, error: "missing bearer token" };
 
+  // sha256(token) as the lookup key: comparing hash digests, not secrets, so
+  // a plain indexed WHERE is timing-safe — and backed by the
+  // idx_sessions_token_hash unique index instead of a full-table scan.
   const provided = sha256(token);
-  const candidates = await db.select().from(sessions);
-
-  let session: Session | undefined;
-  for (const s of candidates) {
-    if (safeEqualHex(s.tokenHash, provided)) {
-      session = s;
-      break;
-    }
-  }
+  const [session] = await db
+    .select()
+    .from(sessions)
+    .where(eq(sessions.tokenHash, provided))
+    .limit(1);
 
   if (!session) return { ok: false, status: 401, error: "invalid token" };
 

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { headers } from "next/headers";
 import "./globals.css";
 import SettingsMenu from "./_components/ui/SettingsMenu";
 
@@ -30,11 +31,17 @@ const themeScript = `
 }})();
 `;
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Nonce generated per-request in proxy.ts; stamped here so the theme
+  // bootstrap script survives the strict script-src CSP. If it's ever
+  // absent (unexpected render path), the script is dropped rather than
+  // weakening CSP — worst case is a theme flash.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+
   return (
     <html
       lang="en"
@@ -42,7 +49,10 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <head>
-        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <script
+          nonce={nonce}
+          dangerouslySetInnerHTML={{ __html: themeScript }}
+        />
       </head>
       <body className="min-h-full flex flex-col bg-bg text-text">
         <SettingsMenu />

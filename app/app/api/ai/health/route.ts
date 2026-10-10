@@ -15,9 +15,9 @@ export async function GET() {
       available: models.map((m) => m.name),
     });
   } catch (err) {
-    return Response.json(
-      { ok: false, error: err instanceof Error ? err.message : String(err) },
-      { status: 503 }
-    );
+    // Node fetch errors embed the target URL — keep that out of responses
+    // (audit 2026-10-10); log server-side instead.
+    console.error("[ai-health] ollama check failed:", err);
+    return Response.json({ ok: false }, { status: 503 });
   }
 }

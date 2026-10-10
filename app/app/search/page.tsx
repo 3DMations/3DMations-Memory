@@ -2,6 +2,7 @@ import Link from "next/link";
 import { desc, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { memories, sessions } from "@/db/schema";
+import { escapeLike, MAX_SEARCH_TERM } from "@/lib/validate";
 import SearchInput from "./SearchInput";
 import AutoRefresh from "../_components/AutoRefresh";
 import PageHeader from "../_components/ui/PageHeader";
@@ -17,7 +18,8 @@ interface PageProps {
 
 export default async function SearchPage({ searchParams }: PageProps) {
   const { q } = await searchParams;
-  const term = q?.trim() ?? "";
+  const term = (q?.trim() ?? "").slice(0, MAX_SEARCH_TERM);
+  const pattern = "%" + escapeLike(term) + "%";
 
   const score = sql<number>`(
     similarity(${memories.title}, ${term}) * 2 +
@@ -43,8 +45,8 @@ export default async function SearchPage({ searchParams }: PageProps) {
           sql`(
             ${memories.title} % ${term}
             OR ${memories.content} % ${term}
-            OR ${memories.title} ILIKE ${"%" + term + "%"}
-            OR ${memories.content} ILIKE ${"%" + term + "%"}
+            OR ${memories.title} ILIKE ${pattern}
+            OR ${memories.content} ILIKE ${pattern}
           )`
         )
         .orderBy(desc(score))

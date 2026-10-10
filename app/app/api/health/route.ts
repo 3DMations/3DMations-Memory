@@ -11,12 +11,11 @@ export async function GET() {
       schema_version: 1,
     });
   } catch (err) {
+    // Detail to server logs only — pg errors can name the db/user; clients
+    // get a generic shape (audit 2026-10-10).
+    console.error("[health] db check failed:", err);
     return Response.json(
-      {
-        status: "error",
-        db: "down",
-        error: err instanceof Error ? err.message : String(err),
-      },
+      { status: "error", db: "down" },
       { status: 503 }
     );
   }

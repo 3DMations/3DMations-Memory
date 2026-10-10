@@ -19,6 +19,9 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Emits .next/standalone with a minimal server.js — the multi-stage
+  // Dockerfile copies just that into the runner stage (no node_modules).
+  output: "standalone",
   async headers() {
     return [
       {

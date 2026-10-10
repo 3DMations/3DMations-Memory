@@ -7,7 +7,7 @@ interface World {
   sessionId?: string;
   sessionToken?: string;
   lastResponse?: Response;
-  lastBody?: any;
+  lastBody?: Record<string, unknown> | null;
 }
 
 let world: World = {};

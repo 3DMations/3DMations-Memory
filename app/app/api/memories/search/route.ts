@@ -2,6 +2,7 @@ import { desc, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { memories, sessions } from "@/db/schema";
 import { authenticate } from "@/lib/auth";
+import { escapeLike, MAX_SEARCH_TERM } from "@/lib/validate";
 
 const MAX_LIMIT = 200;
 const DEFAULT_LIMIT = 50;
@@ -20,7 +21,8 @@ export async function GET(request: Request) {
       { status: 400 }
     );
   }
-  const term = q.trim();
+  const term = q.trim().slice(0, MAX_SEARCH_TERM);
+  const pattern = "%" + escapeLike(term) + "%";
 
   const limitRaw = parseInt(url.searchParams.get("limit") ?? "", 10);
   const limit =
@@ -51,8 +53,8 @@ export async function GET(request: Request) {
       sql`(
         ${memories.title} % ${term}
         OR ${memories.content} % ${term}
-        OR ${memories.title} ILIKE ${"%" + term + "%"}
-        OR ${memories.content} ILIKE ${"%" + term + "%"}
+        OR ${memories.title} ILIKE ${pattern}
+        OR ${memories.content} ILIKE ${pattern}
       )`
     )
     .orderBy(desc(score))

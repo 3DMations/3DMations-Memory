@@ -14,3 +14,14 @@ docs/
 *.md
 !app/AGENTS.md
 !app/CLAUDE.md
+
+# Test infrastructure never ships in the runtime image (audit 2026-10-10) —
+# the multi-stage build only needs source for `next build`.
+app/__tests__/
+app/e2e/
+app/features/
+app/cucumber.json
+app/playwright.config.ts
+app/playwright-report/
+app/test-results/
+app/drizzle/

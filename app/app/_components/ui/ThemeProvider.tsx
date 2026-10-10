@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 export type Theme = "light" | "dark";
 const STORAGE_KEY = "memory-hub:theme";
@@ -8,7 +8,7 @@ const STORAGE_KEY = "memory-hub:theme";
 // External pub/sub so multiple useTheme() callers stay in sync without
 // needing a React Context wrapper (which interacts badly with the FOUC-prevention
 // inline-script + Next.js client-component boundaries on the html element).
-const listeners = new Set<(t: Theme) => void>();
+const listeners = new Set<() => void>();
 
 function readTheme(): Theme {
   if (typeof document === "undefined") return "dark";
@@ -28,22 +28,21 @@ function applyTheme(t: Theme) {
 
 export function setThemeGlobal(t: Theme) {
   applyTheme(t);
-  listeners.forEach((fn) => fn(t));
+  listeners.forEach((fn) => fn());
+}
+
+function subscribe(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
 }
 
 export function useTheme() {
-  // Always start with "dark" on first render to match SSR; the useEffect
-  // below reconciles to the real value on the client.
-  const [theme, setThemeState] = useState<Theme>("dark");
-
-  useEffect(() => {
-    setThemeState(readTheme());
-    const listener = (t: Theme) => setThemeState(t);
-    listeners.add(listener);
-    return () => {
-      listeners.delete(listener);
-    };
-  }, []);
+  // useSyncExternalStore reads the live DOM class (already correct pre-render
+  // thanks to the theme bootstrap script) and re-renders on setThemeGlobal —
+  // no setState-in-effect needed.
+  const theme = useSyncExternalStore(subscribe, readTheme, () => "dark");
 
   return {
     theme,

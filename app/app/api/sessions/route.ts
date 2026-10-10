@@ -4,6 +4,7 @@ import { sessions } from "@/db/schema";
 import { newBearerToken, newSessionId, sha256 } from "@/lib/crypto";
 import { isAdminAuthorized } from "@/lib/admin-token";
 import { limitHeaders } from "@/lib/rate-limit";
+import { sessionCreateSchema } from "@/lib/validate";
 import { actorFrom, logAudit, requestIdFrom } from "@/lib/audit";
 
 export async function POST(request: Request) {
@@ -20,20 +21,20 @@ export async function POST(request: Request) {
     );
   }
 
-  let body: unknown;
+  let json: unknown;
   try {
-    body = await request.json();
+    json = await request.json();
   } catch {
     return Response.json({ error: "body must be JSON" }, { status: 400 });
   }
-
-  const name = (body as { name?: unknown })?.name;
-  if (typeof name !== "string" || name.trim().length === 0) {
+  const parsed = sessionCreateSchema.safeParse(json);
+  if (!parsed.success) {
     return Response.json(
-      { error: "name is required (non-empty string)" },
+      { error: "name is required (non-empty string, max 200 chars)" },
       { status: 400 }
     );
   }
+  const name = parsed.data.name;
 
   const id = newSessionId();
   const token = newBearerToken();
@@ -41,7 +42,7 @@ export async function POST(request: Request) {
 
   const [row] = await db
     .insert(sessions)
-    .values({ id, name: name.trim(), tokenHash })
+    .values({ id, name, tokenHash })
     .returning({
       id: sessions.id,
       name: sessions.name,

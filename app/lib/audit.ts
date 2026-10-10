@@ -36,10 +36,16 @@ export async function logAudit(args: LogArgs): Promise<void> {
   }
 }
 
-// Pull a request id from common headers, otherwise null.
-// Tailscale Serve doesn't inject one, so we accept X-Request-ID if a client sends it.
+// Pull a request id from the upstream proxy, otherwise null. Only well-formed
+// UUIDs are accepted — proxy.ts generates one for anything else, so a client
+// cannot forge arbitrary correlation IDs into the audit trail
+// (audit 2026-10-10). Tailscale Serve doesn't inject one itself.
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export function requestIdFrom(req: Request): string | null {
-  return req.headers.get("x-request-id");
+  const id = req.headers.get("x-request-id");
+  return id && UUID_RE.test(id) ? id : null;
 }
 
 // Tailscale-User-Login if present, otherwise null. Used as the actor field.

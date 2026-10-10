@@ -1,6 +1,11 @@
 services:
+  # Digest pins (audit 2026-10-10): image tags drift; digests don't.
+  # tailscale/tailscale:latest @ c507f3a2a6ab1cabd8d809b98edeb41edbd5c3fb6ad9632ffd098b4c7d0b4065
+  # postgres:18-alpine      @ 77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
+  # node:22-alpine          @ 0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402 (in Dockerfile)
+  # Bump deliberately via `docker buildx imagetools inspect <image>` + commit.
   ts-hub:
-    image: tailscale/tailscale:latest
+    image: tailscale/tailscale:latest@sha256:c507f3a2a6ab1cabd8d809b98edeb41edbd5c3fb6ad9632ffd098b4c7d0b4065
     container_name: hub-ts
     hostname: hub
     restart: unless-stopped
@@ -9,6 +14,10 @@ services:
       TS_EXTRA_ARGS: --advertise-tags=tag:hub
       TS_SERVE_CONFIG: /config/serve.json
       TS_STATE_DIR: /var/lib/tailscale
+      # Exposes /healthz on 127.0.0.1:9999 inside the container — used by the
+      # healthcheck so `app` waits for an authenticated tailscaled, not just a
+      # started one.
+      TS_ENABLE_HEALTH_CHECK: "true"
     volumes:
       - hub-ts-state:/var/lib/tailscale
       - ./tailscale/serve.json:/config/serve.json:ro
@@ -19,6 +28,12 @@ services:
       - sys_module
     mem_limit: 256m
     cpus: 0.5
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9999/healthz >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     networks:
       - hub-internal
       - jarvis-internal
@@ -39,10 +54,10 @@ services:
       AI_FEATURES_ENABLED: ${AI_FEATURES_ENABLED}
       OLLAMA_URL: ${OLLAMA_URL}
       OLLAMA_MODEL: ${OLLAMA_MODEL}
-      NEXT_TELEMETRY_DISABLED: "1"
-    # PRODUCTION mode (pnpm build && pnpm start). No HMR WebSocket — Tailscale
-    # Serve doesn't proxy ws:// upgrades, and a failing HMR socket prevents React
-    # hydration in dev mode (diagnosed via Playwright 2026-04-26).
+    # PRODUCTION runtime (audit 2026-10-10): the multi-stage image ships the
+    # prebuilt standalone server (`node server.js`, loopback bind baked in via
+    # HOSTNAME=127.0.0.1). No source bind-mount, no at-start `pnpm build` —
+    # deploys are `make up` (docker compose build) and restarts are instant.
     # For active dev iteration with HMR, use the app-debug profile on localhost.
     # Loopback bind (security audit 2026-10-10): the socket is reachable ONLY
     # inside ts-hub's netns at 127.0.0.1:3000 — what serve.json proxies to.
@@ -50,10 +65,9 @@ services:
     # bridge IP, letting any container on that shared network bypass Tailscale
     # entirely and spoof Tailscale-User-Login. Loopback makes "tailnet is the
     # only ingress" enforced, not assumed.
-    command: ["sh", "-c", "pnpm build && pnpm start -p 3000 -H 127.0.0.1"]
-    # Hardening (audit 2026-10-10): no privilege escalation, zero caps (Node
-    # needs none), read-only rootfs (app writes only to its mounts), capped
-    # resources. /tmp is tmpfs because the rootfs is read-only.
+    # Hardening: no privilege escalation, zero caps (Node needs none),
+    # read-only rootfs (the standalone server writes nothing at runtime),
+    # capped resources. /tmp is tmpfs because the rootfs is read-only.
     security_opt:
       - no-new-privileges:true
     cap_drop: [ALL]
@@ -63,18 +77,17 @@ services:
     mem_limit: 1536m
     cpus: 1.5
     network_mode: service:ts-hub
-    volumes:
-      - ./app:/app
-      - hub-node-modules:/app/node_modules
-      - hub-next-cache:/app/.next
-      # Mount the hub-scrubber skill at the relative path the test expects
-      # (test does `../../.claude/skills/hub-scrubber/...` from /app/__tests__/).
-      - ./.claude/skills:/.claude/skills:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     depends_on:
       db:
         condition: service_healthy
       ts-hub:
-        condition: service_started
+        condition: service_healthy
 
   # Debug profile (Phase 3a O4=a): emergency local-only access when tailnet is
   # unreachable. Mutually exclusive with `app` (shared volumes — DO NOT run both).
@@ -114,7 +127,7 @@ services:
       - hub-internal
 
   db:
-    image: postgres:18-alpine
+    image: postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
     container_name: hub-db
     restart: unless-stopped
     # Postgres entrypoint needs these caps to chown its data dir and drop

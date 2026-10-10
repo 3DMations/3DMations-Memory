@@ -3,84 +3,58 @@ import { db } from "@/db";
 import { memories } from "@/db/schema";
 import { authenticate } from "@/lib/auth";
 import { computeMemoryHash } from "@/lib/hash";
+import { escapeLike, MAX_SEARCH_TERM, memoryCreateSchema } from "@/lib/validate";
 import { actorFrom, logAudit, requestIdFrom } from "@/lib/audit";
 
 const MAX_LIMIT = 200;
 const DEFAULT_LIMIT = 50;
 
-// content_hash is computed server-side from {title, content, category};
-// any value sent by the client is ignored.
-interface CreateBody {
-  session_id?: unknown;
-  title?: unknown;
-  content?: unknown;
-  category?: unknown;
-  tags?: unknown;
-  confidence?: unknown;
-  recurrence?: unknown;
-  local_entry_id?: unknown;
-  metadata?: unknown;
-}
-
 export async function POST(request: Request) {
-  let body: CreateBody;
+  let json: unknown;
   try {
-    body = (await request.json()) as CreateBody;
+    json = await request.json();
   } catch {
     return Response.json({ error: "body must be JSON" }, { status: 400 });
   }
+  const parsed = memoryCreateSchema.safeParse(json);
+  if (!parsed.success) {
+    return Response.json(
+      {
+        error: "invalid body",
+        issues: parsed.error.issues.map((i) => ({
+          path: i.path.join("."),
+          code: i.code,
+        })),
+      },
+      { status: 400 }
+    );
+  }
+  const body = parsed.data;
 
   const sessionId = body.session_id;
-  const title = body.title;
-  if (typeof sessionId !== "string" || sessionId.length === 0) {
-    return Response.json(
-      { error: "session_id required (string)" },
-      { status: 400 }
-    );
-  }
-  if (typeof title !== "string" || title.trim().length === 0) {
-    return Response.json(
-      { error: "title required (non-empty string)" },
-      { status: 400 }
-    );
-  }
 
   const auth = await authenticate(request, sessionId);
   if (!auth.ok) {
     return Response.json({ error: auth.error }, { status: auth.status });
   }
 
-  const tags =
-    Array.isArray(body.tags) && body.tags.every((t) => typeof t === "string")
-      ? (body.tags as string[])
-      : undefined;
-  const confidence =
-    typeof body.confidence === "number" &&
-    body.confidence >= 0 &&
-    body.confidence <= 1
-      ? body.confidence
-      : undefined;
-  const recurrence =
-    typeof body.recurrence === "number" && body.recurrence >= 1
-      ? Math.floor(body.recurrence)
-      : undefined;
-  const metadata =
-    body.metadata && typeof body.metadata === "object"
-      ? (body.metadata as Record<string, unknown>)
-      : undefined;
+  const tags = body.tags;
+  const confidence = body.confidence;
+  const recurrence = body.recurrence;
+  const metadata = body.metadata;
 
-  const trimmedTitle = title.trim();
-  const contentValue = typeof body.content === "string" ? body.content : null;
-  const categoryValue =
-    typeof body.category === "string" ? body.category : null;
+  // content_hash is computed server-side from {title, content, category};
+  // any value sent by the client is ignored.
+  const trimmedTitle = body.title;
+  const contentValue = body.content ?? null;
+  const categoryValue = body.category ?? null;
 
   const insertValue = {
     sessionId,
     title: trimmedTitle,
     content: contentValue,
     category: categoryValue,
-    localEntryId:
-      typeof body.local_entry_id === "string" ? body.local_entry_id : null,
+    localEntryId: body.local_entry_id ?? null,
     contentHash: computeMemoryHash({
       title: trimmedTitle,
       content: contentValue,
@@ -159,7 +133,8 @@ export async function GET(request: Request) {
     : undefined;
 
   if (q && q.trim().length > 0) {
-    const term = q.trim();
+    const term = q.trim().slice(0, MAX_SEARCH_TERM);
+    const pattern = "%" + escapeLike(term) + "%";
     const score = sql<number>`(
       similarity(${memories.title}, ${term}) * 2 +
       COALESCE(similarity(${memories.content}, ${term}), 0)
@@ -186,9 +161,9 @@ export async function GET(request: Request) {
         filters
           ? and(
               filters,
-              sql`(${memories.title} % ${term} OR ${memories.content} % ${term} OR ${memories.title} ILIKE ${"%" + term + "%"} OR ${memories.content} ILIKE ${"%" + term + "%"})`
+              sql`(${memories.title} % ${term} OR ${memories.content} % ${term} OR ${memories.title} ILIKE ${pattern} OR ${memories.content} ILIKE ${pattern})`
             )
-          : sql`(${memories.title} % ${term} OR ${memories.content} % ${term} OR ${memories.title} ILIKE ${"%" + term + "%"} OR ${memories.content} ILIKE ${"%" + term + "%"})`
+          : sql`(${memories.title} % ${term} OR ${memories.content} % ${term} OR ${memories.title} ILIKE ${pattern} OR ${memories.content} ILIKE ${pattern})`
       )
       .orderBy(desc(score))
       .limit(limit);

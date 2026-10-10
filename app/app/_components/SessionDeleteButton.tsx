@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import IconButton from "./ui/IconButton";
 import Button from "./ui/Button";
 import { ADMIN_KEY } from "@/lib/admin-key";
@@ -25,12 +25,6 @@ export default function SessionDeleteButton({
   const [tokenInput, setTokenInput] = useState("");
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const cached = sessionStorage.getItem(ADMIN_KEY);
-    if (cached) setAdminToken(cached);
-  }, [open]);
 
   function close() {
     setOpen(false);
@@ -92,6 +86,10 @@ export default function SessionDeleteButton({
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
+          // Pull the cached admin token at open-time (event-driven, no
+          // setState-in-effect).
+          const cached = sessionStorage.getItem(ADMIN_KEY);
+          if (cached) setAdminToken(cached);
           setOpen(true);
         }}
         className="hover:!text-error hover:!bg-error/10"

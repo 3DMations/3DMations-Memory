@@ -23,7 +23,9 @@ reset:
 	docker compose down -v
 
 test:
-	docker compose exec app pnpm test
+	# Tests boot their own testcontainers stack from the host — the production
+	# runtime image ships neither pnpm nor test files (multi-stage, P2).
+	pnpm --dir app test
 
 build:
 	docker compose build

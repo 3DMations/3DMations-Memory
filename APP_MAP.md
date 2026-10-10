@@ -54,7 +54,7 @@ flowchart TB
     end
     subgraph HubHost["Host: aiwork-legion (Linux/Docker)"]
         TS["📡 hub-ts<br/>tailscale/tailscale<br/><sub>tag:hub · sidecar</sub>"]
-        App["🖥 hub-app<br/>Next.js 16 · prod build<br/><sub>pnpm start, no host port</sub>"]
+        App["🖥 hub-app<br/>Next.js 16 · standalone build<br/><sub>node server.js, no host port</sub>"]
         DB[("🗄 hub-db<br/>postgres:18-alpine<br/><sub>memories DB</sub>")]
     end
     subgraph OPS["3DMations-OPS stack (separate compose)"]
@@ -138,13 +138,14 @@ The Phase 0 ASCII topology in git history is now superseded; here is the live wi
    │            │ network_mode: service:ts-hub                            │
    │            │ (shared netns)                                           │
    │            ▼                                                          │
-   │  ┌───────────────────────┐                                            │
-   │  │ hub-app               │     bind mount: ./app ─▶ /app             │
-   │  │ Next.js 16.2.4 PROD   │     vol: hub-node-modules ─▶ /app/node_…  │
-   │  │ (pnpm start)          │     vol: hub-next-cache  ─▶ /app/.next    │
-   │  │ React 19.2.4          │     ro mount: ./.claude/skills ─▶         │
-   │  │ TS 5.9.3              │              /.claude/skills              │
-   │  └────────┬──────────────┘                                            │
+│  ┌───────────────────────┐                                            │
+  │  │ hub-app               │     (no mounts — multi-stage image,        │
+  │  │ Next.js 16.2.4 PROD   │      standalone server baked in)           │
+  │  │ (node server.js,      │     read_only rootfs · cap_drop ALL        │
+  │  │  loopback bind)       │     no-new-privileges                      │
+  │  │ React 19.2.4          │                                            │
+  │  │ TS 5.9.3              │                                            │
+  │  └────────┬──────────────┘                                            │
    │           │ DATABASE_URL                                              │
    │           ▼                                                            │
    │  ┌───────────────────────┐     volume: hub-db-data                   │
@@ -176,7 +177,7 @@ Debug profile (emergency local-only access — operator runs `stop app` first):
 | Container  | Image                          | Owner   | Networks                          | Host port      | Internal | Purpose |
 |------------|--------------------------------|---------|-----------------------------------|----------------|----------|---------|
 | `hub-ts`   | `tailscale/tailscale:latest`   | hub     | `hub-internal`, `jarvis-internal` | (none — tailnet only) | 443/HTTPS | Tailscale Serve sidecar. Hostname `hub`, tag `tag:hub`. Terminates HTTPS, proxies to app via shared netns. |
-| `hub-app`  | `3dmations-memory-app`         | hub     | (inherits via `network_mode: service:ts-hub`) | (none) | 3000  | Next.js 16 production build (`pnpm start`). Frontend RSC + `/api/*` routes. |
+| `hub-app`  | `3dmations-memory-app`         | hub     | (inherits via `network_mode: service:ts-hub`) | (none) | 3000 | Next.js 16 standalone server (`node server.js`, loopback bind). Frontend RSC + `/api/*` routes. Multi-stage image, non-root, read-only rootfs. |
 | `hub-app-debug` (profile `debug`) | `3dmations-memory-app` | hub | `hub-internal` | `127.0.0.1:${APP_PORT}` | 3000 | Emergency loopback — runs `pnpm dev` with HMR. Mutually exclusive with `hub-app` (shared volumes). |
 | `hub-db`   | `postgres:18-alpine`           | hub     | `hub-internal`                    | (none)         | 5432     | Memory store. PG18 with `pg_trgm`, `uuidv7()` native. |
 | `jarvis-ollama` | `ollama/ollama`           | OPS     | `jarvis-internal`                 | `127.0.0.1:11434` | 11434 | LLM inference (qwen3.6:35b). Reused, not managed by this stack. |
@@ -613,7 +614,24 @@ GIN trigram indexes do the heavy lifting; large headroom against the seal.
 
 **Tests added:** audit-log (3), admin-logs (3), recurrence (2), gotchas (2). Total 61/61 vitest cases across 15 suites. Playwright diagnose.spec.ts covers gear menu + /stats + /gotchas + theme persistence (4/4 pass).
 
-**Production-mode shift (was Phase 3 follow-up, sealed during UI Polish 2026-04-26):** Compose `app` service runs `pnpm build && pnpm start` instead of `pnpm dev`. Tailscale Serve doesn't proxy WebSocket upgrades; Next.js dev-mode HMR socket failed in a loop and prevented React hydration site-wide. Production build has no HMR socket. Debug profile keeps dev mode for HMR-friendly local-loopback iteration.
+**Production-mode shift (was Phase 3 follow-up, sealed during UI Polish 2026-04-26):** Compose `app` service runs a prebuilt production server instead of `pnpm dev`. Tailscale Serve doesn't proxy WebSocket upgrades; Next.js dev-mode HMR socket failed in a loop and prevented React hydration site-wide. Debug profile keeps dev mode for HMR-friendly local-loopback iteration.
+
+**Security hardening pass (2026-10-10 audit, P0–P2 sealed):**
+- App binds `127.0.0.1:3000` inside the shared netns — NOT 0.0.0.0. With the
+  old bind, any container on `jarvis-internal` could reach :3000 directly,
+  bypass Tailscale Serve, and spoof `Tailscale-User-Login`. Loopback makes
+  "tailnet is the only ingress" enforced, not assumed.
+- `POST /api/sessions` is admin-gated (`X-Admin-Token` = AUTH_SECRET, same
+  gate as session DELETE). Approvals: `make session name=…`, the `/new` page
+  (asks for the admin token), or curl. Devices hold per-session bearer tokens.
+- Per-service env allowlists (TS_AUTHKEY reaches only ts-hub, POSTGRES_*
+  only db), digest-pinned images, non-root read-only containers with
+  cap_drop ALL, healthchecks (app waits for db AND tailscaled healthy),
+  nonce-based CSP + security headers, zod-validated bodies with length
+  caps, statement_timeout 5s, rate limiting on mint/gotchas, indexed
+  bearer-token lookup.
+- Multi-stage Dockerfile (deps → build → runner on node:22-alpine digest);
+  runtime image ships only the standalone server.
 
 ## Out of scope (Phase 6+, only build if triggered by usage)
 

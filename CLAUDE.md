@@ -86,7 +86,7 @@ If `.claude/memory/` does not exist, inform the user and offer to run the bootst
 ## Project Context
 
 3DMations Memory Hub — central memory server for Claude Code sessions across multiple machines.
-Stack: Docker (PostgreSQL 16 + FastAPI + nginx), mTLS, Python 3.12, SQLAlchemy async.
+Stack: Docker Compose (PostgreSQL 18 + Next.js 16/TypeScript + Tailscale Serve sidecar), Drizzle ORM, tailnet-only ingress (loopback-bound app behind Serve; no nginx/mTLS — that was the retired v3 stack, see `.archive/`). Deploys: `make up` (multi-stage image build); tests run on the host via testcontainers (`make test`).
 
 ## What NOT To Do
 
